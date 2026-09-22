@@ -1,13 +1,15 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Avatar from "primevue/avatar";
 import Button from "primevue/button";
 import BrandMark from "../components/BrandMark.vue";
 import { useAuthStore } from "../stores/auth";
+import { useAssignmentsStore } from "../stores/assignments";
 import { useThemeStore } from "../stores/theme";
 
 const auth = useAuthStore();
+const assignments = useAssignmentsStore();
 const theme = useThemeStore();
 const route = useRoute();
 const router = useRouter();
@@ -18,9 +20,11 @@ const items = computed(() =>
     { label: "Карта", icon: "pi-map", name: "map", permission: "map.view" },
     { label: "Объекты контроля", icon: "pi-building", name: "objects", permission: "object.view" },
     { label: "Текущие показания", icon: "pi-wave-pulse", name: "events", permission: "event.view" },
+    { label: "Назначения", icon: "pi-clipboard", name: "assignments", permission: "assignment.view" },
+    { label: "Подразделения", icon: "pi-sitemap", name: "divisions", permission: "access.manage" },
     { label: "Журнал прогнозов", icon: "pi-chart-line", name: "forecasts", permission: "forecast.view" },
     { label: "Уведомления", icon: "pi-bell", name: "notifications", permission: "notification.view" },
-    { label: "Подразделения", icon: "pi-sitemap", name: "divisions", permission: "access.manage" },
+
     {
       label: "Администрирование",
       icon: "pi-shield",
@@ -41,10 +45,17 @@ const initials = computed(() =>
     .join("")
     .toUpperCase(),
 );
+const pendingAssignments = computed(() => assignments.items.filter(
+  (item) => item.status === "pending" && item.technician_id === auth.user?.id,
+).length);
 function logout() {
   auth.logout();
   router.push({ name: "login" });
 }
+onMounted(() => {
+  if (auth.roleCodes.includes("technician") && auth.hasPermission("assignment.view"))
+    assignments.load().catch(() => {});
+});
 </script>
 
 <template>
@@ -69,9 +80,9 @@ function logout() {
           :to="{ name: item.name }"
           :class="['nav-link', { active: route.name === item.name }]"
           @click="mobileOpen = false"
-          ><i :class="['pi', item.icon]" /><span>{{
+          ><i :class="['pi', item.icon]" /><span class="nav-link-label">{{
             item.label
-          }}</span></RouterLink
+          }}<strong v-if="item.name === 'assignments' && pendingAssignments" class="nav-badge">{{ pendingAssignments }}</strong></span></RouterLink
         >
       </nav>
       <RouterLink :to="{ name: 'profile' }" class="user-card"

@@ -602,6 +602,64 @@ async def test_dashboard_summarizes_accessible_objects_and_servicing_users(rbac_
     assert [item["id"] for item in payload["objects"]] == [1, 2]
 
 
+async def test_dispatcher_assigns_unique_object_date_and_technician_completes(rbac_db, rbac_client):
+    rbac_db.add_all([
+        Permission(id="assignment-view", code="assignment.view", name="Просмотр", description="Просмотр"),
+        Permission(id="assignment-create", code="assignment.create", name="Создание", description="Создание"),
+        Permission(id="assignment-complete", code="assignment.complete", name="Завершение", description="Завершение"),
+        User(id="tech", email="tech@example.com", name="Техник", is_active=True),
+    ])
+    await rbac_db.flush()
+    await grant(
+        rbac_db,
+        "dispatcher",
+        permissions=["view", "assignment-view", "assignment-create"],
+        divisions=["v1"],
+    )
+    technician_role = Role(id="technician", code="technician", name="Техник")
+    rbac_db.add(technician_role)
+    await rbac_db.flush()
+    await rbac_db.execute(insert(user_roles).values(user_id="tech", role_id="technician"))
+    await rbac_db.execute(insert(role_permissions), [
+        {"role_id": "technician", "permission_id": "view"},
+        {"role_id": "technician", "permission_id": "assignment-view"},
+        {"role_id": "technician", "permission_id": "assignment-complete"},
+    ])
+    await rbac_db.execute(insert(user_divisions).values(user_id="tech", division_id="v1"))
+    await rbac_db.commit()
+
+    technicians = await rbac_client.get("/api/assignments/technicians?object_id=1")
+    assert technicians.status_code == 200
+    assert [item["id"] for item in technicians.json()] == ["tech"]
+
+    payload = {
+        "object_id": 1,
+        "channel_id": 11,
+        "technician_id": "tech",
+        "scheduled_date": "2026-09-24",
+    }
+    created = await rbac_client.post("/api/assignments", json=payload)
+    assert created.status_code == 201
+    assert created.json()["status"] == "pending"
+    assert created.json()["sensor_name"] is None
+
+    duplicate = await rbac_client.post("/api/assignments", json={
+        **payload, "channel_id": None,
+    })
+    assert duplicate.status_code == 409
+
+    rbac_client.headers["Authorization"] = f"Bearer {create_access_token({'sub': 'tech'})}"
+    listed = await rbac_client.get("/api/assignments")
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()] == [created.json()["id"]]
+    completed = await rbac_client.patch(
+        f"/api/assignments/{created.json()['id']}/complete"
+    )
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "completed"
+    assert completed.json()["completed_at"] is not None
+
+
 async def test_division_objects_and_user_membership_are_editable(rbac_db, rbac_client):
     await grant(rbac_db, "admin", permissions=[])
     response = await rbac_client.put("/api/admin/divisions/v1/objects", json={"ids": [1]})

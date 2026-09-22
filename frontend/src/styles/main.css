@@ -98,6 +98,25 @@ input {
   border-radius: 8px;
   color: #bcccdc;
 }
+.nav-link-label {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.nav-badge {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  color: #9f1239;
+  background: #ffe4e6;
+  font-size: 0.7rem;
+}
 .nav-link:hover,
 .nav-link.active {
   color: #fff;
@@ -590,6 +609,39 @@ input {
 .muted-text {
   color: #829ab1;
 }
+.assignment-form {
+  display: grid;
+  gap: 1rem;
+}
+.assignment-form h2 {
+  margin: 0.2rem 0 0;
+  font-size: 1.1rem;
+}
+.assignment-fields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(190px, 1fr) minmax(220px, 1.2fr) minmax(170px, 0.8fr) auto;
+  gap: 0.8rem;
+  align-items: end;
+}
+.assignment-fields label {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+  color: #486581;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.assignment-fields .p-select,
+.assignment-fields .p-datepicker {
+  width: 100%;
+  min-width: 0;
+}
+.table-subtitle {
+  display: block;
+  margin-top: 0.2rem;
+  color: #829ab1;
+  font-size: 0.72rem;
+}
 .empty-dashboard {
   min-height: calc(100vh - 220px);
   display: grid;
@@ -756,6 +808,9 @@ input {
   border-color: #334e68;
 }
 @media (max-width: 900px) {
+  .assignment-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .dashboard-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -806,6 +861,9 @@ input {
   }
 }
 @media (max-width: 560px) {
+  .assignment-fields {
+    grid-template-columns: 1fr;
+  }
   .dashboard-kpis {
     grid-template-columns: 1fr;
   }

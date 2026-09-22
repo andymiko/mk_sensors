@@ -1,0 +1,42 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+celerybeat-schedule*
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Generated project tooling
+graphify-out/
+
+node_modules/

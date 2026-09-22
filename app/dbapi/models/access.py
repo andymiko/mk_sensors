@@ -7,6 +7,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.dbapi.base import Base
 
 
+district_divisions = Table(
+    "district_divisions",
+    Base.metadata,
+    Column("district_id", String(36), ForeignKey("districts.id", ondelete="CASCADE"), primary_key=True),
+    Column("division_id", String(36), ForeignKey("divisions.id", ondelete="RESTRICT"), primary_key=True),
+)
+
+
 class Division(Base):
     __tablename__ = "divisions"
 

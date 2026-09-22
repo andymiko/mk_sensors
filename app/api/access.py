@@ -1,7 +1,8 @@
+from collections import defaultdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +10,8 @@ from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models import Object, Role, User
 from app.dbapi.models.access import (
-    District, Division, user_role_districts, user_role_divisions, user_role_objects,
+    District, Division, district_divisions, user_role_districts,
+    user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import user_roles
 from app.schemas.access import (
@@ -51,17 +53,57 @@ async def create_division(payload: TerritoryCreate, db: Db):
 
 @router.get("/districts", response_model=list[DistrictRead])
 async def list_districts(db: Db):
-    return (await db.scalars(select(District).order_by(District.name))).all()
+    districts = (await db.scalars(select(District).order_by(District.name))).all()
+    linked_divisions = defaultdict(list)
+    if districts:
+        rows = await db.execute(
+            select(district_divisions.c.district_id, district_divisions.c.division_id)
+            .where(district_divisions.c.district_id.in_([district.id for district in districts]))
+            .order_by(district_divisions.c.division_id)
+        )
+        for district_id, division_id in rows:
+            linked_divisions[district_id].append(division_id)
+    return [
+        _district_read(district, linked_divisions[district.id])
+        for district in districts
+    ]
 
 
 @router.post("/districts", response_model=DistrictRead, status_code=201)
 async def create_district(payload: DistrictCreate, db: Db):
-    if await db.get(Division, payload.division_id) is None:
-        raise HTTPException(422, "Неизвестное подразделение")
-    district = District(**payload.model_dump())
+    division_ids = set(payload.division_ids)
+    if payload.division_id:
+        division_ids.add(payload.division_id)
+    if not division_ids:
+        raise HTTPException(422, "Укажите хотя бы одно подразделение")
+    existing = set(await db.scalars(select(Division.id).where(Division.id.in_(division_ids))))
+    if existing != division_ids:
+        raise HTTPException(422, "Передано неизвестное подразделение")
+    data = payload.model_dump(exclude={"division_id", "division_ids"})
+    primary_division_id = payload.division_id or payload.division_ids[0]
+    district = District(**data, division_id=primary_division_id)
     db.add(district)
-    await _commit(db)
-    return district
+    try:
+        await db.flush()
+        await db.execute(insert(district_divisions), [
+            {"district_id": district.id, "division_id": division_id}
+            for division_id in sorted(division_ids)
+        ])
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "Район с таким кодом уже существует") from None
+    return _district_read(district, sorted(division_ids))
+
+
+def _district_read(district: District, division_ids: list[str]) -> DistrictRead:
+    return DistrictRead.model_validate({
+        "id": district.id,
+        "code": district.code,
+        "name": district.name,
+        "division_id": district.division_id,
+        "division_ids": division_ids,
+    })
 
 
 @router.put("/objects/{object_id}/district", response_model=ObjectRead)

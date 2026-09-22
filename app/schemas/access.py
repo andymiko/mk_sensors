@@ -10,7 +10,9 @@ class TerritoryCreate(BaseModel):
 
 
 class DistrictCreate(TerritoryCreate):
-    division_id: str = Field(min_length=1, max_length=36)
+    # division_id remains accepted while clients migrate to the many-to-many field.
+    division_id: str | None = Field(default=None, min_length=1, max_length=36)
+    division_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
 class TerritoryRead(TerritoryCreate):
@@ -20,6 +22,7 @@ class TerritoryRead(TerritoryCreate):
 
 class DistrictRead(TerritoryRead):
     division_id: str
+    division_ids: list[str]
 
 
 class RoleScope(BaseModel):

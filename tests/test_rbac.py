@@ -12,13 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from app.dbapi.base import Base
 from app.dbapi.models import Channel, Event, Object, Permission, Role, User
 from app.dbapi.models.access import (
-    District, Division, user_role_districts, user_role_divisions, user_role_objects,
+    District, Division, district_divisions, user_role_districts,
+    user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import role_permissions, user_roles
 from app.rbac import accessible_channels, accessible_events, accessible_objects
 from app.dbapi.base import get_async_session
 from app.utils.security import create_access_token
 from main import app
+from scripts.seed_territories import (
+    DISTRICTS, DIVISIONS, OBJECT_DISTRICTS, seed_territories,
+)
 
 
 @pytest.fixture
@@ -48,6 +52,10 @@ async def rbac_db():
                     District(id="d2", code="d2", name="Район 2", division_id="v2"),
                 ])
                 await db.flush()
+                await db.execute(insert(district_divisions), [
+                    {"district_id": "d1", "division_id": "v1"},
+                    {"district_id": "d2", "division_id": "v2"},
+                ])
                 db.add_all([
                     Object(id=i, district_id=d, hierarchy_level=1, object_type="test", dispatch_name=str(i))
                     for i, d in [(1, "d1"), (2, "d1"), (3, "d2"), (4, None)]
@@ -98,6 +106,12 @@ async def test_dispatcher_districts_union_explicit_objects(rbac_db):
 async def test_manager_division(rbac_db):
     await grant(rbac_db, "manager", divisions=["v1"])
     assert await visible(rbac_db) == {1, 2}
+
+
+async def test_manager_sees_district_linked_as_secondary_division(rbac_db):
+    await rbac_db.execute(insert(district_divisions).values(district_id="d1", division_id="v2"))
+    await grant(rbac_db, "manager", divisions=["v2"])
+    assert await visible(rbac_db) == {1, 2, 3}
 
 
 async def test_multiple_roles_do_not_multiply_permissions(rbac_db):
@@ -223,11 +237,20 @@ async def test_territory_creation_and_object_assignment(rbac_db, rbac_client):
     await grant(rbac_db, "admin", permissions=[])
     division = await rbac_client.post("/api/admin/divisions", json={"code": "new", "name": "Новое"})
     assert division.status_code == 201
-    district = await rbac_client.post("/api/admin/districts", json={"code": "new", "name": "Новый", "division_id": division.json()["id"]})
+    district = await rbac_client.post("/api/admin/districts", json={
+        "code": "new", "name": "Новый", "division_ids": ["v1", division.json()["id"]],
+    })
     assert district.status_code == 201
+    assert set(district.json()["division_ids"]) == {"v1", division.json()["id"]}
     response = await rbac_client.put("/api/admin/objects/4/district", json={"district_id": district.json()["id"]})
     assert response.status_code == 200
     assert response.json()["district_id"] == district.json()["id"]
+
+    legacy = await rbac_client.post("/api/admin/districts", json={
+        "code": "legacy", "name": "Совместимый", "division_id": "v1",
+    })
+    assert legacy.status_code == 201
+    assert legacy.json()["division_ids"] == ["v1"]
 
 
 async def test_channels_api_checks_scope_and_permission(rbac_db, rbac_client):
@@ -291,3 +314,46 @@ async def test_anonymous_access_rejected(rbac_client):
     rbac_client.headers.pop("Authorization")
     for path in ("/api/objects", "/api/channels", "/api/admin/divisions"):
         assert (await rbac_client.get(path)).status_code == 401
+
+
+async def test_territory_seed_is_strict_before_writing(rbac_db):
+    with pytest.raises(ValueError, match="отсутствуют идентификаторы"):
+        await seed_territories(rbac_db)
+    assert set(await rbac_db.scalars(select(Division.code))) == {"v1", "v2"}
+
+
+async def test_territory_seed_is_idempotent(rbac_db):
+    rbac_db.add_all([
+        Object(
+            id=object_id,
+            hierarchy_level=1,
+            object_type="test",
+            dispatch_name=str(object_id),
+        )
+        for object_id in OBJECT_DISTRICTS
+    ])
+    await rbac_db.flush()
+
+    first = await seed_territories(rbac_db)
+    second = await seed_territories(rbac_db)
+    await rbac_db.flush()
+
+    assert first == second
+    assert first.objects_updated == 19
+    assert set(DIVISIONS).issubset(set(await rbac_db.scalars(select(Division.code))))
+    assert set(DISTRICTS).issubset(set(await rbac_db.scalars(select(District.code))))
+
+    seeded_district_ids = select(District.id).where(District.code.in_(DISTRICTS))
+    links_count = await rbac_db.scalar(
+        select(func.count()).select_from(district_divisions).where(
+            district_divisions.c.district_id.in_(seeded_district_ids)
+        )
+    )
+    assert links_count == 20
+
+    assigned = dict((await rbac_db.execute(
+        select(Object.id, District.code)
+        .join(District, District.id == Object.district_id)
+        .where(Object.id.in_(OBJECT_DISTRICTS))
+    )).all())
+    assert assigned == OBJECT_DISTRICTS

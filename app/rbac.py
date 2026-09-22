@@ -3,7 +3,7 @@ from sqlalchemy import and_, or_, select
 
 from app.dbapi.models import Channel, Event, Object, Permission, Role, User
 from app.dbapi.models.access import (
-    District, user_role_districts, user_role_divisions, user_role_objects,
+    district_divisions, user_role_districts, user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import role_permissions, user_roles
 
@@ -27,8 +27,11 @@ def object_access_condition(user_id: str, permission_code: str):
         user_role_districts.c.user_id == user_id, user_role_districts.c.role_id == Role.id,
     ).correlate(Role)
     division_districts = (
-        select(District.id)
-        .join(user_role_divisions, user_role_divisions.c.division_id == District.division_id)
+        select(district_divisions.c.district_id)
+        .join(
+            user_role_divisions,
+            user_role_divisions.c.division_id == district_divisions.c.division_id,
+        )
         .where(user_role_divisions.c.user_id == user_id, user_role_divisions.c.role_id == Role.id)
         .correlate(Role)
     )

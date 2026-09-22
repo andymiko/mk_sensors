@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin import router as admin_router
+from app.api.access import router as access_router
+from app.api.objects import router as objects_router
 from app.api.dependencies import CurrentUser
 from app.api.files import router as files_router
 from app.config import settings
@@ -27,6 +29,8 @@ app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type"])
 app.include_router(admin_router, prefix=settings.API_PREFIX)
 app.include_router(files_router, prefix=settings.API_PREFIX)
+app.include_router(access_router, prefix=settings.API_PREFIX)
+app.include_router(objects_router, prefix=settings.API_PREFIX)
 
 
 @app.post(f"{settings.API_PREFIX}/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

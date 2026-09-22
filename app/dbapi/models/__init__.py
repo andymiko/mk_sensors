@@ -7,6 +7,9 @@ from app.dbapi.models.users import User
 from app.dbapi.models.channels import Channel
 from app.dbapi.models.events import Event
 from app.dbapi.models.objects import Object
+from app.dbapi.models.access import (
+    District, Division, user_role_districts, user_role_divisions, user_role_objects,
+)
 
 __all__ = [
     "Auth", 
@@ -18,5 +21,10 @@ __all__ = [
     "user_roles",
     "Channel",
     "Event",
-    "Object"
+    "Object",
+    "District",
+    "Division",
+    "user_role_districts",
+    "user_role_divisions",
+    "user_role_objects",
     ]

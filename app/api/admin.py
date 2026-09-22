@@ -68,16 +68,20 @@ async def replace_user_roles(
     db: Db,
     _current_user: Annotated[User, Depends(require_permission("user.edit"))],
 ):
-    if await db.get(User, user_id) is None:
+    if await db.scalar(select(User).where(User.id == user_id).with_for_update()) is None:
         raise HTTPException(404, "Пользователь не найден")
     role_ids = set(payload.role_ids)
     if role_ids:
         existing = set((await db.scalars(select(Role.id).where(Role.id.in_(role_ids)))).all())
         if existing != role_ids:
             raise HTTPException(400, "Передана неизвестная роль")
-    await db.execute(delete(user_roles).where(user_roles.c.user_id == user_id))
-    if role_ids:
-        await db.execute(user_roles.insert(), [{"user_id": user_id, "role_id": role_id} for role_id in role_ids])
+    current_ids = set(await db.scalars(select(user_roles.c.role_id).where(user_roles.c.user_id == user_id)))
+    removed = current_ids - role_ids
+    if removed:
+        await db.execute(delete(user_roles).where(user_roles.c.user_id == user_id, user_roles.c.role_id.in_(removed)))
+    added = role_ids - current_ids
+    if added:
+        await db.execute(user_roles.insert(), [{"user_id": user_id, "role_id": role_id} for role_id in added])
     await db.commit()
     return await _load_user(db, user_id)
 
@@ -178,5 +182,6 @@ async def list_all_files(
 async def _load_user(db: AsyncSession, user_id: str) -> UserRead:
     user = await db.scalar(
         select(User).where(User.id == user_id).options(selectinload(User.roles).selectinload(Role.permissions))
+        .execution_options(populate_existing=True)
     )
     return UserRead.model_validate(user)

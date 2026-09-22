@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Double, Index, Integer, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, Double, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.dbapi.base import Base
@@ -16,6 +16,9 @@ class Object(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     hierarchy_level: Mapped[int] = mapped_column(Integer, nullable=False)
     parent_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    district_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("districts.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     object_type: Mapped[str] = mapped_column(String(100), nullable=False)
     dispatch_name: Mapped[str] = mapped_column(Text, nullable=False)
 

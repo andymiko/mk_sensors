@@ -25,13 +25,16 @@ function iso(value) {
   const part = (number) => String(number).padStart(2, "0");
   return `${value.getFullYear()}-${part(value.getMonth() + 1)}-${part(value.getDate())}T${part(value.getHours())}:${part(value.getMinutes())}:${part(value.getSeconds())}`;
 }
-function load() {
+function load(page = 1, pageSize = monitoring.eventPageSize) {
   return monitoring.loadEvents({
     date_from: iso(filters.dateFrom),
     date_to: iso(filters.dateTo),
     object_id: filters.objectId,
     sensor_type: filters.sensorType,
-  });
+  }, { page, pageSize });
+}
+function changePage(event) {
+  load(event.page + 1, event.rows);
 }
 function reset() {
   Object.assign(filters, { dateFrom: null, dateTo: null, objectId: null, sensorType: null });
@@ -65,11 +68,25 @@ onMounted(async () => {
     </div>
     <Message v-if="monitoring.error" severity="error">{{ monitoring.error }}</Message>
     <div class="section-card table-card">
-      <DataTable :value="monitoring.events" :loading="monitoring.loadingEvents" striped-rows responsive-layout="scroll">
+      <DataTable
+        :value="monitoring.events"
+        :loading="monitoring.loadingEvents"
+        :total-records="monitoring.eventTotal"
+        :rows="monitoring.eventPageSize"
+        :first="(monitoring.eventPage - 1) * monitoring.eventPageSize"
+        :rows-per-page-options="[10, 20, 50, 100]"
+        paginator
+        lazy
+        striped-rows
+        responsive-layout="scroll"
+        @page="changePage"
+      >
         <Column field="event_at" header="Дата события">
           <template #body="{ data }">{{ new Date(data.event_at).toLocaleString("ru-RU") }}</template>
         </Column>
-        <Column field="object_id" header="Объект" />
+        <Column field="object_name" header="Объект">
+          <template #body="{ data }">{{ data.object_name || `Объект ${data.object_id}` }}</template>
+        </Column>
         <Column field="sensor_type" header="Тип датчика" />
         <Column field="sensor_name" header="Датчик" />
         <Column field="sensor_value" header="Значение">

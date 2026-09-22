@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,18 +12,20 @@ from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models.associations import role_permissions, user_roles
 from app.dbapi.models.auths import Auth
+from app.dbapi.models.access import Division, user_divisions
 from app.dbapi.models.permissions import Permission
 from app.dbapi.models.roles import Role
 from app.dbapi.models.users import User
 from app.schemas.admin import (
     PermissionCreate, PermissionUpdate, RoleCreate, RolePermissionsUpdate,
-    RoleUpdate, UserRolesUpdate, UserStatusUpdate,
+    RoleUpdate, UserDivisionsUpdate, UserRolesUpdate, UserStatusUpdate,
 )
 from app.schemas.users import PermissionModel, RoleModel, UserRead
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 Db = Annotated[AsyncSession, Depends(get_async_session)]
+DIVISION_ROLES = {"dispatcher", "technician", "manager"}
 
 
 @router.get("/users", response_model=list[UserRead])
@@ -37,7 +40,18 @@ async def list_users(
             .order_by(User.created_at.desc())
         )
     ).all()
-    return [UserRead.model_validate(user) for user in users]
+    division_ids = defaultdict(list)
+    if users:
+        for user_id, division_id in await db.execute(
+            select(user_divisions.c.user_id, user_divisions.c.division_id)
+            .where(user_divisions.c.user_id.in_([user.id for user in users]))
+            .order_by(user_divisions.c.division_id)
+        ):
+            division_ids[user_id].append(division_id)
+    return [
+        UserRead.model_validate(user).model_copy(update={"division_ids": division_ids[user.id]})
+        for user in users
+    ]
 
 
 @router.patch("/users/{user_id}/status", response_model=UserRead)
@@ -73,6 +87,12 @@ async def replace_user_roles(
         existing = set((await db.scalars(select(Role.id).where(Role.id.in_(role_ids)))).all())
         if existing != role_ids:
             raise HTTPException(400, "Передана неизвестная роль")
+        role_codes = set(await db.scalars(select(Role.code).where(Role.id.in_(role_ids))))
+        has_division = await db.scalar(
+            select(user_divisions.c.user_id).where(user_divisions.c.user_id == user_id).limit(1)
+        )
+        if role_codes & DIVISION_ROLES and has_division is None:
+            raise HTTPException(422, "Сначала назначьте пользователю подразделение")
     current_ids = set(await db.scalars(select(user_roles.c.role_id).where(user_roles.c.user_id == user_id)))
     removed = current_ids - role_ids
     if removed:
@@ -80,6 +100,37 @@ async def replace_user_roles(
     added = role_ids - current_ids
     if added:
         await db.execute(user_roles.insert(), [{"user_id": user_id, "role_id": role_id} for role_id in added])
+    await db.commit()
+    return await _load_user(db, user_id)
+
+
+@router.put("/users/{user_id}/divisions", response_model=UserRead)
+async def replace_user_divisions(
+    user_id: str,
+    payload: UserDivisionsUpdate,
+    db: Db,
+    _current_user: Annotated[User, Depends(require_permission("user.edit"))],
+):
+    if await db.scalar(select(User.id).where(User.id == user_id).with_for_update()) is None:
+        raise HTTPException(404, "Пользователь не найден")
+    division_ids = set(payload.division_ids)
+    if not division_ids:
+        role_codes = set(await db.scalars(
+            select(Role.code).join(user_roles, user_roles.c.role_id == Role.id)
+            .where(user_roles.c.user_id == user_id)
+        ))
+        if role_codes & DIVISION_ROLES:
+            raise HTTPException(422, "Нельзя удалить последнее подразделение пользователя с рабочей ролью")
+    if division_ids:
+        existing = set(await db.scalars(select(Division.id).where(Division.id.in_(division_ids))))
+        if existing != division_ids:
+            raise HTTPException(422, "Передано неизвестное подразделение")
+    await db.execute(delete(user_divisions).where(user_divisions.c.user_id == user_id))
+    if division_ids:
+        await db.execute(user_divisions.insert(), [
+            {"user_id": user_id, "division_id": division_id}
+            for division_id in sorted(division_ids)
+        ])
     await db.commit()
     return await _load_user(db, user_id)
 
@@ -166,4 +217,9 @@ async def _load_user(db: AsyncSession, user_id: str) -> UserRead:
         select(User).where(User.id == user_id).options(selectinload(User.roles).selectinload(Role.permissions))
         .execution_options(populate_existing=True)
     )
-    return UserRead.model_validate(user)
+    divisions = list(await db.scalars(
+        select(user_divisions.c.division_id)
+        .where(user_divisions.c.user_id == user_id)
+        .order_by(user_divisions.c.division_id)
+    ))
+    return UserRead.model_validate(user).model_copy(update={"division_ids": divisions})

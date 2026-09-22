@@ -10,13 +10,13 @@ from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models import Object, Role, User
 from app.dbapi.models.access import (
-    District, Districts, Division, Divisions, district_divisions, user_role_districts,
-    user_role_divisions, user_role_objects,
+    District, Districts, Division, Divisions, district_divisions, division_objects,
+    user_divisions, user_role_districts, user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import user_roles
 from app.schemas.access import (
-    DistrictCreate, DistrictRead, ObjectDistrictUpdate, ObjectRead,
-    RoleScope, TerritoryCreate, TerritoryRead,
+    DistrictCreate, DistrictRead, DivisionDetails, DivisionMember, IdsUpdate,
+    ObjectDistrictUpdate, ObjectRead, RoleScope, TerritoryCreate, TerritoryRead,
 )
 
 router = APIRouter(
@@ -41,6 +41,55 @@ async def _commit(db: AsyncSession):
 @router.get("/divisions", response_model=list[TerritoryRead])
 async def list_divisions(db: Db):
     return (await db.scalars(select(Division).order_by(Division.name))).all()
+
+
+@router.get("/divisions/details", response_model=list[DivisionDetails])
+async def list_division_details(db: Db):
+    divisions = (await db.scalars(select(Division).order_by(Division.name))).all()
+    object_ids = defaultdict(list)
+    members = defaultdict(list)
+    for division_id, object_id in await db.execute(
+        select(division_objects.c.division_id, division_objects.c.object_id)
+        .order_by(division_objects.c.object_id)
+    ):
+        object_ids[division_id].append(object_id)
+    for division_id, user_id, name, email in await db.execute(
+        select(user_divisions.c.division_id, User.id, User.name, User.email)
+        .join(User, User.id == user_divisions.c.user_id)
+        .order_by(User.name, User.id)
+    ):
+        members[division_id].append(DivisionMember(id=user_id, name=name, email=email))
+    return [DivisionDetails(
+        id=division.id, code=division.code, name=division.name,
+        object_ids=object_ids[division.id], users=members[division.id],
+    ) for division in divisions]
+
+
+@router.put("/divisions/{division_id}/objects", response_model=DivisionDetails)
+async def replace_division_objects(division_id: str, payload: IdsUpdate, db: Db):
+    division = await db.get(Division, division_id)
+    if division is None:
+        raise HTTPException(404, "Подразделение не найдено")
+    object_ids = set(payload.ids)
+    if object_ids and set(await db.scalars(select(Object.id).where(Object.id.in_(object_ids)))) != object_ids:
+        raise HTTPException(422, "Переданы неизвестные объекты")
+    await db.execute(delete(division_objects).where(division_objects.c.division_id == division_id))
+    if object_ids:
+        await db.execute(division_objects.insert(), [
+            {"division_id": division_id, "object_id": object_id}
+            for object_id in sorted(object_ids)
+        ])
+    await _commit(db)
+    users = [DivisionMember(id=user_id, name=name, email=email) for user_id, name, email in await db.execute(
+        select(User.id, User.name, User.email)
+        .join(user_divisions, user_divisions.c.user_id == User.id)
+        .where(user_divisions.c.division_id == division_id)
+        .order_by(User.name, User.id)
+    )]
+    return DivisionDetails(
+        id=division.id, code=division.code, name=division.name,
+        object_ids=sorted(object_ids), users=users,
+    )
 
 
 @router.post("/divisions", response_model=TerritoryRead, status_code=201)
@@ -146,10 +195,6 @@ async def replace_role_scope(user_id: str, role_id: str, payload: RoleScope, db:
     role = await _assigned_role(db, user_id, role_id, lock=True)
     if role.code not in {"dispatcher", "technician", "manager"}:
         raise HTTPException(422, "Область назначается диспетчеру, технику или руководителю")
-    if role.code == "manager" and (payload.district_ids or payload.object_ids):
-        raise HTTPException(422, "Руководителю назначаются подразделения")
-    if role.code != "manager" and payload.division_ids:
-        raise HTTPException(422, "Подразделения назначаются руководителю")
     for field, _table, _column, model in SCOPE_TABLES:
         ids = set(getattr(payload, field))
         if ids and set(await db.scalars(select(model.id).where(model.id.in_(ids)))) != ids:

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dbapi.base import async_session
 from app.dbapi.models import Object
-from app.dbapi.models.access import District, Division, district_divisions
+from app.dbapi.models.access import District, Division, district_divisions, division_objects
 
 
 DIVISIONS = {
@@ -118,6 +118,17 @@ async def seed_territories(db: AsyncSession, *, allow_missing_objects: bool = Fa
     for object_id in existing_object_ids:
         obj = await db.get(Object, object_id)
         obj.district_id = district_ids[OBJECT_DISTRICTS[object_id]]
+
+    await db.execute(delete(division_objects).where(
+        division_objects.c.object_id.in_(existing_object_ids)
+    ))
+    object_links = [
+        {"object_id": object_id, "division_id": division_ids[division_code]}
+        for object_id in existing_object_ids
+        for division_code in DISTRICTS[OBJECT_DISTRICTS[object_id]][1]
+    ]
+    if object_links:
+        await db.execute(insert(division_objects), object_links)
 
     return SeedResult(
         divisions=len(DIVISIONS),

@@ -15,8 +15,8 @@ from app.dbapi.models import (
     Channel, Channels, Event, Events, Object, Objects, Permission, Role, User,
 )
 from app.dbapi.models.access import (
-    District, Districts, Division, Divisions, district_divisions, user_role_districts,
-    user_role_divisions, user_role_objects,
+    District, Districts, Division, Divisions, district_divisions, division_objects,
+    user_divisions, user_role_districts, user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import role_permissions, user_roles
 from app.rbac import accessible_channels, accessible_events, accessible_objects
@@ -64,6 +64,11 @@ async def rbac_db():
                     for i, d in [(1, "d1"), (2, "d1"), (3, "d2"), (4, None)]
                 ])
                 await db.flush()
+                await db.execute(insert(division_objects), [
+                    {"division_id": "v1", "object_id": 1},
+                    {"division_id": "v1", "object_id": 2},
+                    {"division_id": "v2", "object_id": 3},
+                ])
                 db.add_all([Channel(id=11, object_id=1), Channel(id=12, object_id=3), Channel(id=13)])
                 await db.commit()
                 yield db
@@ -85,6 +90,25 @@ async def grant(db, code, permissions=("view",), districts=(), objects=(), divis
     ]:
         for value in values:
             await db.execute(insert(table).values(user_id="u", role_id=code, **{column: value}))
+    assigned_divisions = set(divisions)
+    if districts:
+        assigned_divisions.update(await db.scalars(
+            select(district_divisions.c.division_id)
+            .where(district_divisions.c.district_id.in_(districts))
+        ))
+    if objects:
+        assigned_divisions.update(await db.scalars(
+            select(district_divisions.c.division_id)
+            .join(Object, Object.district_id == district_divisions.c.district_id)
+            .where(Object.id.in_(objects))
+        ))
+    existing_divisions = set(await db.scalars(
+        select(user_divisions.c.division_id).where(user_divisions.c.user_id == "u")
+    ))
+    for division_id in assigned_divisions - existing_divisions:
+        await db.execute(insert(user_divisions).values(
+            user_id="u", division_id=division_id,
+        ))
 
 
 async def visible(db, permission="object.view"):
@@ -271,9 +295,9 @@ async def test_no_assignments_deny_access(rbac_db):
     assert await visible(rbac_db) == set()
 
 
-async def test_technician_requires_both_district_and_object(rbac_db):
+async def test_technician_access_comes_from_assigned_divisions(rbac_db):
     await grant(rbac_db, "technician", districts=["d1"], objects=[1, 3, 4])
-    assert await visible(rbac_db) == {1}
+    assert await visible(rbac_db) == {1, 2, 3}
 
 
 async def test_dispatcher_districts_union_explicit_objects(rbac_db):
@@ -288,15 +312,19 @@ async def test_manager_division(rbac_db):
 
 async def test_manager_sees_district_linked_as_secondary_division(rbac_db):
     await rbac_db.execute(insert(district_divisions).values(district_id="d1", division_id="v2"))
+    await rbac_db.execute(insert(division_objects), [
+        {"division_id": "v2", "object_id": 1},
+        {"division_id": "v2", "object_id": 2},
+    ])
     await grant(rbac_db, "manager", divisions=["v2"])
     assert await visible(rbac_db) == {1, 2, 3}
 
 
-async def test_multiple_roles_do_not_multiply_permissions(rbac_db):
+async def test_role_permissions_apply_to_all_user_divisions(rbac_db):
     await grant(rbac_db, "manager", permissions=["view", "edit"], divisions=["v1"])
     await grant(rbac_db, "technician", districts=["d2"], objects=[3])
     assert await visible(rbac_db) == {1, 2, 3}
-    assert await visible(rbac_db, "object.edit") == {1, 2}
+    assert await visible(rbac_db, "object.edit") == {1, 2, 3}
 
 
 async def test_missing_permission_denies_even_assigned_object(rbac_db):
@@ -347,7 +375,7 @@ async def test_objects_api_filters_totals_and_detail(rbac_db, rbac_client):
     await grant(rbac_db, "technician", districts=["d1"], objects=[1])
     response = await rbac_client.get("/api/objects?page_size=1")
     assert response.status_code == 200
-    assert response.json()["total"] == 1
+    assert response.json()["total"] == 2
     assert [item["id"] for item in response.json()["items"]] == [1]
     assert (await rbac_client.get("/api/objects/3")).status_code == 404
 
@@ -400,7 +428,6 @@ async def test_scope_roundtrip_and_clear(rbac_db, rbac_client):
 
 
 @pytest.mark.parametrize("payload", [
-    {"division_ids": ["v1"]},
     {"district_ids": ["missing"]},
     {"district_ids": ["d1"], "object_ids": [999]},
     {"district_ids": ["d1"], "object_ids": [4]},
@@ -483,6 +510,66 @@ async def test_events_api_rejects_inverted_date_range(rbac_db, rbac_client):
     await grant(rbac_db, "technician", permissions=["event"], districts=["d1"], objects=[1])
     response = await rbac_client.get(
         "/api/events?date_from=2026-02-01T00:00:00&date_to=2026-01-01T00:00:00"
+    )
+    assert response.status_code == 422
+
+
+async def test_map_objects_include_latest_sensor_states_and_risk_color(rbac_db, rbac_client):
+    from datetime import datetime
+
+    await grant(rbac_db, "technician", divisions=["v1"])
+    channel = await rbac_db.get(Channel, 11)
+    channel.sensor_name = "Температура"
+    channel.sensor_type = "temperature"
+    rbac_db.add_all([
+        Channel(id=14, object_id=1, sensor_name="Давление", sensor_type="pressure"),
+        Channel(id=15, object_id=1, sensor_name="Вибрация", sensor_type="vibration"),
+        Channel(id=16, object_id=1, sensor_name="Ток", sensor_type="current"),
+        Event(id=301, channel_id=11, event_at=datetime(2026, 1, 1), is_alarm=True, sensor_value="90"),
+        Event(id=302, channel_id=14, event_at=datetime(2026, 1, 1), is_alarm=False, sensor_value="1"),
+        Event(id=303, channel_id=15, event_at=datetime(2026, 1, 1), is_alarm=False, sensor_value="2"),
+        Event(id=304, channel_id=16, event_at=datetime(2026, 1, 1), is_alarm=False, sensor_value="3"),
+    ])
+    await rbac_db.commit()
+
+    response = await rbac_client.get("/api/objects/map")
+    assert response.status_code == 200
+    object_one = next(item for item in response.json() if item["id"] == 1)
+    assert object_one["status_color"] == "orange"
+    assert len(object_one["sensors"]) == 4
+    assert next(sensor for sensor in object_one["sensors"] if sensor["channel_id"] == 11)["sensor_value"] == "90"
+
+
+async def test_division_objects_and_user_membership_are_editable(rbac_db, rbac_client):
+    await grant(rbac_db, "admin", permissions=[])
+    response = await rbac_client.put("/api/admin/divisions/v1/objects", json={"ids": [1]})
+    assert response.status_code == 200
+    assert response.json()["object_ids"] == [1]
+
+    response = await rbac_client.put("/api/admin/users/u/divisions", json={"division_ids": ["v1"]})
+    assert response.status_code == 200
+    assert response.json()["division_ids"] == ["v1"]
+    details = await rbac_client.get("/api/admin/divisions/details")
+    division = next(item for item in details.json() if item["id"] == "v1")
+    assert division["object_ids"] == [1]
+    assert [user["id"] for user in division["users"]] == ["u"]
+
+
+async def test_operational_role_requires_division(rbac_db, rbac_client):
+    await grant(rbac_db, "admin", permissions=[])
+    rbac_db.add(Role(id="technician", code="technician", name="Техник"))
+    await rbac_db.flush()
+    response = await rbac_client.put(
+        "/api/admin/users/u/roles", json={"role_ids": ["admin", "technician"]},
+    )
+    assert response.status_code == 422
+
+
+async def test_last_division_cannot_be_removed_from_operational_user(rbac_db, rbac_client):
+    await grant(rbac_db, "admin", permissions=[])
+    await grant(rbac_db, "technician", divisions=["v1"])
+    response = await rbac_client.put(
+        "/api/admin/users/u/divisions", json={"division_ids": []},
     )
     assert response.status_code == 422
 
@@ -571,6 +658,11 @@ async def test_territory_seed_is_idempotent(rbac_db):
         )
     )
     assert links_count == 20
+    assert await rbac_db.scalar(
+        select(func.count()).select_from(division_objects).where(
+            division_objects.c.object_id.in_(OBJECT_DISTRICTS)
+        )
+    ) == 38
 
     assigned = dict((await rbac_db.execute(
         select(Object.id, District.code)

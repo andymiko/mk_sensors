@@ -3,7 +3,7 @@ from sqlalchemy import and_, or_, select
 
 from app.dbapi.models import Channel, Event, Object, Permission, Role, User
 from app.dbapi.models.access import (
-    district_divisions, user_role_districts, user_role_divisions, user_role_objects,
+    division_objects, user_divisions,
 )
 from app.dbapi.models.associations import role_permissions, user_roles
 
@@ -20,33 +20,21 @@ def _admin(user_id):
 
 
 def object_access_condition(user_id: str, permission_code: str):
-    explicit_objects = select(user_role_objects.c.object_id).where(
-        user_role_objects.c.user_id == user_id, user_role_objects.c.role_id == Role.id,
-    ).correlate(Role)
-    districts = select(user_role_districts.c.district_id).where(
-        user_role_districts.c.user_id == user_id, user_role_districts.c.role_id == Role.id,
-    ).correlate(Role)
-    division_districts = (
-        select(district_divisions.c.district_id)
-        .join(
-            user_role_divisions,
-            user_role_divisions.c.division_id == district_divisions.c.division_id,
-        )
-        .where(user_role_divisions.c.user_id == user_id, user_role_divisions.c.role_id == Role.id)
-        .correlate(Role)
-    )
-    scope = or_(
-        and_(Role.code == "technician", Object.district_id.in_(districts), Object.id.in_(explicit_objects)),
-        and_(Role.code == "dispatcher", Object.district_id.is_not(None),
-             or_(Object.district_id.in_(districts), Object.id.in_(explicit_objects))),
-        and_(Role.code == "manager", Object.district_id.in_(division_districts)),
+    assigned_objects = (
+        select(division_objects.c.object_id)
+        .join(user_divisions, user_divisions.c.division_id == division_objects.c.division_id)
+        .where(user_divisions.c.user_id == user_id)
     )
     allowed_role = (
         select(Role.id)
         .join(user_roles, user_roles.c.role_id == Role.id)
         .join(role_permissions, role_permissions.c.role_id == Role.id)
         .join(Permission, Permission.id == role_permissions.c.permission_id)
-        .where(user_roles.c.user_id == user_id, Permission.code == permission_code, scope)
+        .where(
+            user_roles.c.user_id == user_id,
+            Permission.code == permission_code,
+            Object.id.in_(assigned_objects),
+        )
         .correlate(Object).exists()
     )
     return and_(_active_user(user_id), or_(_admin(user_id), allowed_role))

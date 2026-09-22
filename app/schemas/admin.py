@@ -9,6 +9,10 @@ class UserRolesUpdate(BaseModel):
     role_ids: list[str] = Field(default_factory=list)
 
 
+class UserDivisionsUpdate(BaseModel):
+    division_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
 class RoleCreate(BaseModel):
     code: str = Field(pattern=r"^[a-z][a-z0-9_.-]{1,99}$")
     name: str = Field(min_length=1, max_length=100)

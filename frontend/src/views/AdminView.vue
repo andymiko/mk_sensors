@@ -52,7 +52,21 @@ onMounted(() => admin.loadAll());
             responsive-layout="scroll"
             ><Column field="name" header="ФИО" /><Column
               field="email"
-              header="Email" /><Column header="Роли"
+              header="Email" /><Column header="Подразделения"
+              ><template #body="{ data }"
+                ><MultiSelect
+                  :model-value="data.division_ids"
+                  :options="admin.divisions"
+                  option-label="name"
+                  option-value="id"
+                  display="chip"
+                  :max-selected-labels="2"
+                  selected-items-label="{0} подразделений"
+                  placeholder="Не назначено"
+                  class="admin-multiselect"
+                  @update:model-value="admin.setUserDivisions(data, $event)"
+                /></template></Column
+            ><Column header="Роли"
               ><template #body="{ data }"
                 ><div class="tag-wrap">
                   <Tag

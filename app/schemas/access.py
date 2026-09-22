@@ -48,6 +48,17 @@ class ObjectRead(BaseModel):
     dispatch_name: str
     longitude: float | None
     latitude: float | None
+    district_name: str | None = None
+
+
+class ObjectUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    dispatch_name: str = Field(min_length=1, max_length=1000)
+    object_type: str = Field(min_length=1, max_length=100)
+    hierarchy_level: int
+    district_id: str | None = Field(default=None, max_length=36)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
 
 
 class ChannelRead(BaseModel):
@@ -69,6 +80,38 @@ class EventRead(BaseModel):
     sensor_value: str | None
     sensor_type: str | None
     sensor_name: str | None
+    object_name: str | None
+
+
+class SensorState(BaseModel):
+    channel_id: int
+    sensor_name: str | None
+    sensor_type: str | None
+    sensor_value: str | None
+    is_alarm: bool | None
+    status: str
+    event_at: datetime | None
+
+
+class ObjectDetails(ObjectRead):
+    sensors: list[SensorState] = Field(default_factory=list)
+    status: str
+    status_color: str
+
+
+class IdsUpdate(BaseModel):
+    ids: list[int] = Field(default_factory=list, max_length=10000)
+
+
+class DivisionMember(BaseModel):
+    id: str
+    name: str
+    email: str
+
+
+class DivisionDetails(TerritoryRead):
+    object_ids: list[int] = Field(default_factory=list)
+    users: list[DivisionMember] = Field(default_factory=list)
 
 
 Item = TypeVar("Item")

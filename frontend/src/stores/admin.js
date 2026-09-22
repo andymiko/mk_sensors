@@ -6,6 +6,7 @@ export const useAdminStore = defineStore("admin", () => {
   const users = ref([]);
   const roles = ref([]);
   const permissions = ref([]);
+  const divisions = ref([]);
   const loading = ref(false);
   async function loadCatalog() {
     [roles.value, permissions.value] = await Promise.all([
@@ -20,6 +21,9 @@ export const useAdminStore = defineStore("admin", () => {
         loadCatalog(),
         apiRequest("/admin/users").then((data) => {
           users.value = data;
+        }),
+        apiRequest("/admin/divisions").then((data) => {
+          divisions.value = data;
         }),
       ]);
     } finally {
@@ -39,6 +43,15 @@ export const useAdminStore = defineStore("admin", () => {
     const updated = await apiRequest(`/admin/users/${user.id}/roles`, {
       method: "PUT",
       body: JSON.stringify({ role_ids: roleIds }),
+    });
+    users.value = users.value.map((item) =>
+      item.id === updated.id ? updated : item,
+    );
+  }
+  async function setUserDivisions(user, divisionIds) {
+    const updated = await apiRequest(`/admin/users/${user.id}/divisions`, {
+      method: "PUT",
+      body: JSON.stringify({ division_ids: divisionIds }),
     });
     users.value = users.value.map((item) =>
       item.id === updated.id ? updated : item,
@@ -69,10 +82,12 @@ export const useAdminStore = defineStore("admin", () => {
     users,
     roles,
     permissions,
+    divisions,
     loading,
     loadAll,
     setUserStatus,
     setUserRoles,
+    setUserDivisions,
     setRolePermissions,
     createRole,
     createPermission,

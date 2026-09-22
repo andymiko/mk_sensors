@@ -7,6 +7,7 @@ from sqlalchemy import (
     Column,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
     Table,
     insert,
@@ -24,6 +25,22 @@ district_divisions = Table(
     Base.metadata,
     Column("district_id", String(36), ForeignKey("districts.id", ondelete="CASCADE"), primary_key=True),
     Column("division_id", String(36), ForeignKey("divisions.id", ondelete="RESTRICT"), primary_key=True),
+)
+
+division_objects = Table(
+    "division_objects",
+    Base.metadata,
+    Column("division_id", String(36), ForeignKey("divisions.id", ondelete="CASCADE"), primary_key=True),
+    Column("object_id", BigInteger, ForeignKey("objects.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_division_objects_object_id", "object_id"),
+)
+
+user_divisions = Table(
+    "user_divisions",
+    Base.metadata,
+    Column("user_id", String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("division_id", String(36), ForeignKey("divisions.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_user_divisions_division_id", "division_id"),
 )
 
 

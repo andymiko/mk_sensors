@@ -20,7 +20,7 @@ const items = computed(() =>
     { label: "Текущие показания", icon: "pi-wave-pulse", name: "events", permission: "event.view" },
     { label: "Журнал прогнозов", icon: "pi-chart-line", name: "forecasts", permission: "forecast.view" },
     { label: "Уведомления", icon: "pi-bell", name: "notifications", permission: "notification.view" },
-    { label: "Назначения", icon: "pi-sitemap", name: "assignments", permission: "access.manage" },
+    { label: "Подразделения", icon: "pi-sitemap", name: "divisions", permission: "access.manage" },
     {
       label: "Администрирование",
       icon: "pi-shield",

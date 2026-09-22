@@ -58,10 +58,10 @@ const routes = [
         meta: { permission: "notification.view", title: "Уведомления" },
       },
       {
-        path: "assignments",
-        name: "assignments",
-        component: () => import("../views/AssignmentsView.vue"),
-        meta: { permission: "access.manage", title: "Назначения" },
+        path: "divisions",
+        name: "divisions",
+        component: () => import("../views/DivisionsView.vue"),
+        meta: { permission: "access.manage", title: "Подразделения" },
       },
       {
         path: "admin/:section?",

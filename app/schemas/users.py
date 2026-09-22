@@ -29,6 +29,7 @@ class UserRead(BaseModel):
     role_codes: List[str] = Field(default_factory=list)
     permission_codes: List[str] = Field(default_factory=list)
     permissions: List[PermissionModel] = Field(default_factory=list)
+    division_ids: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

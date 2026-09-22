@@ -450,6 +450,123 @@ input {
   border-radius: 12px;
   overflow: hidden;
 }
+.map-stage {
+  position: relative;
+}
+.map-legend {
+  position: absolute;
+  z-index: 2;
+  left: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #fffffff2;
+  box-shadow: 0 6px 18px #102a4326;
+  font-size: 0.78rem;
+}
+.map-legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.status-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+}
+.status-dot.green { background: #16a34a; }
+.status-dot.orange { background: #f97316; }
+.status-dot.red { background: #dc2626; }
+.object-card-dialog {
+  width: min(920px, 94vw);
+}
+.object-summary,
+.object-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+.details-grid div {
+  min-width: 0;
+  padding: 0.8rem;
+  border-radius: 8px;
+  background: #f4f7fa;
+}
+.details-grid dt {
+  color: #627d98;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.details-grid dd {
+  margin: 0.3rem 0 0;
+  overflow-wrap: anywhere;
+}
+.object-editor {
+  width: min(720px, 94vw);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.form-grid label,
+.division-field {
+  display: grid;
+  gap: 0.4rem;
+  color: #486581;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.division-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 1rem;
+}
+.division-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+.division-card h2,
+.division-card h3 {
+  margin: 0;
+}
+.division-field .p-multiselect {
+  width: 100%;
+  min-width: 0;
+}
+.member-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.member-row div,
+.member-row strong,
+.member-row span {
+  min-width: 0;
+  display: block;
+}
+.member-row span {
+  color: #627d98;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
 .map-loading {
   display: grid;
   place-items: center;
@@ -521,6 +638,10 @@ input {
     padding: 1rem;
   }
   .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  .details-grid,
+  .form-grid {
     grid-template-columns: 1fr;
   }
   .topbar-kicker {

@@ -7,11 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
-from app.dbapi.models import Channel, Event, Object, User
-from app.dbapi.models.access import District
+from app.dbapi.models import Channel, Event, Object, Role, User
+from app.dbapi.models.access import District, division_objects, user_divisions
+from app.dbapi.models.associations import user_roles
 from app.rbac import accessible_channels, accessible_events, accessible_objects
 from app.schemas.access import (
-    ChannelRead, EventRead, ObjectDetails, ObjectRead, ObjectUpdate, Page,
+    ChannelRead, DashboardSummary, EventRead, ObjectDetails, ObjectRead, ObjectUpdate, Page,
     SensorState, TerritoryRead,
 )
 
@@ -133,6 +134,43 @@ async def _object_details(db: AsyncSession, object_ids: list[int]) -> list[Objec
             status, color = "Внимание", "orange"
         result.append(ObjectDetails(**item, status=status, status_color=color))
     return result
+
+
+async def _servicing_user_count(db: AsyncSession, object_ids: list[int], role_code: str) -> int:
+    if not object_ids:
+        return 0
+    servicing_divisions = (
+        select(division_objects.c.division_id)
+        .where(division_objects.c.object_id.in_(object_ids))
+    )
+    return await db.scalar(
+        select(func.count(func.distinct(User.id)))
+        .join(user_roles, user_roles.c.user_id == User.id)
+        .join(Role, Role.id == user_roles.c.role_id)
+        .join(user_divisions, user_divisions.c.user_id == User.id)
+        .where(
+            User.is_active.is_(True),
+            Role.code == role_code,
+            user_divisions.c.division_id.in_(servicing_divisions),
+        )
+    ) or 0
+
+
+@router.get("/dashboard", response_model=DashboardSummary)
+async def get_dashboard(db: Db, user: ObjectViewer):
+    object_ids = list(await db.scalars(
+        accessible_objects(user.id).with_only_columns(Object.id).order_by(Object.id)
+    ))
+    objects = await _object_details(db, object_ids)
+    return DashboardSummary(
+        total_objects=len(objects),
+        abnormal_objects=sum(item.status_color != "green" for item in objects),
+        critical_objects=sum(item.status_color == "red" for item in objects),
+        total_sensors=sum(len(item.sensors) for item in objects),
+        dispatcher_count=await _servicing_user_count(db, object_ids, "dispatcher"),
+        technician_count=await _servicing_user_count(db, object_ids, "technician"),
+        objects=objects,
+    )
 
 
 @router.get("/objects/map", response_model=list[ObjectDetails])

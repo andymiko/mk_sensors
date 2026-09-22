@@ -8,11 +8,13 @@ export const useMonitoringStore = defineStore("monitoring", () => {
   const objectTotal = ref(0);
   const channels = ref([]);
   const events = ref([]);
+  const dashboard = ref(null);
   const eventTotal = ref(0);
   const eventPage = ref(1);
   const eventPageSize = ref(20);
   const loadingObjects = ref(false);
   const loadingEvents = ref(false);
+  const loadingDashboard = ref(false);
   const error = ref("");
 
   async function loadObjects({
@@ -65,6 +67,20 @@ export const useMonitoringStore = defineStore("monitoring", () => {
     return apiRequest(`/objects/${objectId}/details`);
   }
 
+  async function loadDashboard() {
+    loadingDashboard.value = true;
+    error.value = "";
+    try {
+      dashboard.value = await apiRequest("/dashboard");
+      return dashboard.value;
+    } catch (requestError) {
+      error.value = requestError.message;
+      throw requestError;
+    } finally {
+      loadingDashboard.value = false;
+    }
+  }
+
   async function updateObject(objectId, payload) {
     const updated = await apiRequest(`/objects/${objectId}`, {
       method: "PUT",
@@ -104,16 +120,19 @@ export const useMonitoringStore = defineStore("monitoring", () => {
     objectTotal,
     channels,
     events,
+    dashboard,
     eventTotal,
     eventPage,
     eventPageSize,
     loadingObjects,
     loadingEvents,
+    loadingDashboard,
     error,
     loadObjects,
     loadChannels,
     loadMapObjects,
     loadObjectDetails,
+    loadDashboard,
     updateObject,
     loadEvents,
   };

@@ -99,6 +99,16 @@ class ObjectDetails(ObjectRead):
     status_color: str
 
 
+class DashboardSummary(BaseModel):
+    total_objects: int
+    abnormal_objects: int
+    critical_objects: int
+    total_sensors: int
+    dispatcher_count: int
+    technician_count: int
+    objects: list[ObjectDetails] = Field(default_factory=list)
+
+
 class IdsUpdate(BaseModel):
     ids: list[int] = Field(default_factory=list, max_length=10000)
 

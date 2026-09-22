@@ -561,6 +561,47 @@ async def test_map_objects_include_latest_sensor_states_and_risk_color(rbac_db, 
     assert next(sensor for sensor in object_one["sensors"] if sensor["channel_id"] == 11)["sensor_value"] == "90"
 
 
+async def test_dashboard_summarizes_accessible_objects_and_servicing_users(rbac_db, rbac_client):
+    from datetime import datetime
+
+    await grant(rbac_db, "technician", divisions=["v1"])
+    dispatcher = User(
+        id="dispatcher-user",
+        email="dispatcher@example.com",
+        name="Диспетчер",
+        is_active=True,
+    )
+    dispatcher_role = Role(id="dispatcher", code="dispatcher", name="Диспетчер")
+    rbac_db.add_all([dispatcher, dispatcher_role])
+    await rbac_db.flush()
+    await rbac_db.execute(insert(user_roles).values(
+        user_id=dispatcher.id, role_id=dispatcher_role.id,
+    ))
+    await rbac_db.execute(insert(user_divisions).values(
+        user_id=dispatcher.id, division_id="v1",
+    ))
+    rbac_db.add(Event(
+        id=401,
+        channel_id=11,
+        event_at=datetime(2026, 1, 1),
+        is_alarm=True,
+        sensor_value="90",
+    ))
+    await rbac_db.commit()
+
+    response = await rbac_client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total_objects"] == 2
+    assert payload["abnormal_objects"] == 1
+    assert payload["critical_objects"] == 1
+    assert payload["total_sensors"] == 1
+    assert payload["dispatcher_count"] == 1
+    assert payload["technician_count"] == 1
+    assert [item["id"] for item in payload["objects"]] == [1, 2]
+
+
 async def test_division_objects_and_user_membership_are_editable(rbac_db, rbac_client):
     await grant(rbac_db, "admin", permissions=[])
     response = await rbac_client.put("/api/admin/divisions/v1/objects", json={"ids": [1]})

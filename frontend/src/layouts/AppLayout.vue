@@ -65,7 +65,7 @@ function logout() {
       <div class="sidebar-brand">
         <BrandMark />
         <div>
-          <strong>Base Project</strong><span>Рабочее пространство</span>
+          <strong>МОСКОЛЛЕКТОР</strong><span>Сервис предиктивной аналитики</span>
         </div>
       </div>
       <nav class="side-nav" aria-label="Основная навигация">
@@ -99,7 +99,7 @@ function logout() {
           @click="mobileOpen = true"
         />
         <div>
-          <span class="topbar-kicker">Рабочее пространство</span
+          <span class="topbar-kicker">Прогноз отказов насосов и вентиляции</span
           ><strong>{{ route.meta.title }}</strong>
         </div>
         <div class="topbar-actions">

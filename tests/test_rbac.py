@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from app.dbapi.base import Base
 from app.dbapi.models import Channel, Event, Object, Permission, Role, User
 from app.dbapi.models.access import (
-    District, Division, district_divisions, user_role_districts,
+    District, Districts, Division, Divisions, district_divisions, user_role_districts,
     user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import role_permissions, user_roles
@@ -86,6 +86,61 @@ async def grant(db, code, permissions=("view",), districts=(), objects=(), divis
 
 async def visible(db, permission="object.view"):
     return set(await db.scalars(accessible_objects("u", permission).with_only_columns(Object.id)))
+
+
+async def test_insert_new_division(rbac_db):
+    division = await Divisions.insert_new_division(
+        code="new-division",
+        name="Новое подразделение",
+        db=rbac_db,
+    )
+
+    assert division.id
+    assert division.code == "new-division"
+    assert division.name == "Новое подразделение"
+    assert await rbac_db.get(Division, division.id) is division
+
+
+async def test_insert_new_district_with_multiple_divisions(rbac_db):
+    district = await Districts.insert_new_district(
+        code="new-district",
+        name="Новый район",
+        division_ids=["v1", "v2", "v1"],
+        primary_division_id="v2",
+        db=rbac_db,
+    )
+
+    assert district.id
+    assert district.division_id == "v2"
+    linked_ids = set(await rbac_db.scalars(
+        select(district_divisions.c.division_id)
+        .where(district_divisions.c.district_id == district.id)
+    ))
+    assert linked_ids == {"v1", "v2"}
+
+
+async def test_insert_new_district_rejects_unknown_divisions(rbac_db):
+    with pytest.raises(ValueError, match="Неизвестные подразделения: missing"):
+        await Districts.insert_new_district(
+            code="invalid-district",
+            name="Некорректный район",
+            division_ids=["v1", "missing"],
+            db=rbac_db,
+        )
+
+    assert await rbac_db.scalar(
+        select(District).where(District.code == "invalid-district")
+    ) is None
+
+
+async def test_insert_new_district_requires_division(rbac_db):
+    with pytest.raises(ValueError, match="Укажите хотя бы одно подразделение"):
+        await Districts.insert_new_district(
+            code="invalid-district",
+            name="Некорректный район",
+            division_ids=[],
+            db=rbac_db,
+        )
 
 
 async def test_no_assignments_deny_access(rbac_db):

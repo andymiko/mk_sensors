@@ -7,11 +7,10 @@ import BrandMark from "../components/BrandMark.vue";
     <section class="auth-hero">
       <div class="hero-copy">
         <BrandMark />
-        <span class="eyebrow">BASE PROJECT</span>
-        <h1>Надёжная основа для нового продукта.</h1>
+        <span class="eyebrow">МОСКОЛЛЕКТОР</span>
+        <h1>Сервис предиктивной аналитики</h1>
         <p>
-          Пользователи, доступы и файловое пространство уже готовы — добавьте
-          предметную область своего проекта.
+          Надежная инфраструктура сегодня - без аварий завтра.
         </p>
       </div>
       <div class="sound-grid" aria-hidden="true">

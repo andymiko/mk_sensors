@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models import Object, Role, User
 from app.dbapi.models.access import (
-    District, Division, district_divisions, user_role_districts,
+    District, Districts, Division, Divisions, district_divisions, user_role_districts,
     user_role_divisions, user_role_objects,
 )
 from app.dbapi.models.associations import user_roles
@@ -45,10 +45,10 @@ async def list_divisions(db: Db):
 
 @router.post("/divisions", response_model=TerritoryRead, status_code=201)
 async def create_division(payload: TerritoryCreate, db: Db):
-    division = Division(**payload.model_dump())
-    db.add(division)
-    await _commit(db)
-    return division
+    try:
+        return await Divisions.insert_new_division(**payload.model_dump(), db=db)
+    except IntegrityError:
+        raise HTTPException(409, "Подразделение с таким кодом уже существует") from None
 
 
 @router.get("/districts", response_model=list[DistrictRead])
@@ -74,24 +74,20 @@ async def create_district(payload: DistrictCreate, db: Db):
     division_ids = set(payload.division_ids)
     if payload.division_id:
         division_ids.add(payload.division_id)
-    if not division_ids:
-        raise HTTPException(422, "Укажите хотя бы одно подразделение")
-    existing = set(await db.scalars(select(Division.id).where(Division.id.in_(division_ids))))
-    if existing != division_ids:
-        raise HTTPException(422, "Передано неизвестное подразделение")
-    data = payload.model_dump(exclude={"division_id", "division_ids"})
-    primary_division_id = payload.division_id or payload.division_ids[0]
-    district = District(**data, division_id=primary_division_id)
-    db.add(district)
     try:
-        await db.flush()
-        await db.execute(insert(district_divisions), [
-            {"district_id": district.id, "division_id": division_id}
-            for division_id in sorted(division_ids)
-        ])
-        await db.commit()
+        district = await Districts.insert_new_district(
+            code=payload.code,
+            name=payload.name,
+            division_ids=sorted(division_ids),
+            primary_division_id=(
+                payload.division_id
+                or (payload.division_ids[0] if payload.division_ids else None)
+            ),
+            db=db,
+        )
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
     except IntegrityError:
-        await db.rollback()
         raise HTTPException(409, "Район с таким кодом уже существует") from None
     return _district_read(district, sorted(division_ids))
 

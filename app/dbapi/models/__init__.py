@@ -8,7 +8,7 @@ from app.dbapi.models.channels import Channel
 from app.dbapi.models.events import Event
 from app.dbapi.models.objects import Object
 from app.dbapi.models.access import (
-    District, Division, district_divisions, user_role_districts,
+    District, Districts, Division, Divisions, district_divisions, user_role_districts,
     user_role_divisions, user_role_objects,
 )
 
@@ -24,7 +24,9 @@ __all__ = [
     "Event",
     "Object",
     "District",
+    "Districts",
     "Division",
+    "Divisions",
     "district_divisions",
     "user_role_districts",
     "user_role_divisions",

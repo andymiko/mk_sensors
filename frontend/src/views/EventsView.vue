@@ -25,7 +25,7 @@ function iso(value) {
   const part = (number) => String(number).padStart(2, "0");
   return `${value.getFullYear()}-${part(value.getMonth() + 1)}-${part(value.getDate())}T${part(value.getHours())}:${part(value.getMinutes())}:${part(value.getSeconds())}`;
 }
-function load(page = 1, pageSize = monitoring.eventPageSize) {
+function loadPage(page = 1, pageSize = monitoring.eventPageSize) {
   return monitoring.loadEvents({
     date_from: iso(filters.dateFrom),
     date_to: iso(filters.dateTo),
@@ -33,16 +33,19 @@ function load(page = 1, pageSize = monitoring.eventPageSize) {
     sensor_type: filters.sensorType,
   }, { page, pageSize });
 }
+function applyFilters() {
+  return loadPage(1, monitoring.eventPageSize);
+}
 function changePage(event) {
-  load(event.page + 1, event.rows);
+  loadPage(event.page + 1, event.rows);
 }
 function reset() {
   Object.assign(filters, { dateFrom: null, dateTo: null, objectId: null, sensorType: null });
-  load();
+  applyFilters();
 }
 onMounted(async () => {
   await Promise.all([monitoring.loadObjects(), monitoring.loadChannels()]);
-  await load();
+  await applyFilters();
 });
 </script>
 
@@ -62,7 +65,7 @@ onMounted(async () => {
       <label>Объект<Select v-model="filters.objectId" :options="objectOptions" option-label="label" option-value="value" show-clear filter /></label>
       <label>Тип датчика<Select v-model="filters.sensorType" :options="sensorOptions" option-label="label" option-value="value" show-clear /></label>
       <div class="filter-actions">
-        <Button label="Применить" icon="pi pi-filter" @click="load" />
+        <Button label="Применить" icon="pi pi-filter" @click="applyFilters" />
         <Button label="Сбросить" severity="secondary" text @click="reset" />
       </div>
     </div>

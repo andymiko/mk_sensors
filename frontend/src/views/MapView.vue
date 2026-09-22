@@ -1,6 +1,12 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import * as maplibregl from "maplibre-gl";
+import {
+  LngLatBounds,
+  Map,
+  NavigationControl,
+  setWorkerUrl,
+} from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import Message from "primevue/message";
 import Dialog from "primevue/dialog";
@@ -11,6 +17,7 @@ import EmptyState from "../components/EmptyState.vue";
 import { useMonitoringStore } from "../stores/monitoring";
 
 const monitoring = useMonitoringStore();
+setWorkerUrl(maplibreWorkerUrl);
 const mapContainer = ref(null);
 const mapError = ref("");
 const selectedObject = ref(null);
@@ -59,14 +66,14 @@ function geojson() {
 function renderMap() {
   const data = geojson();
   if (!data.features.length) return;
-  map = new maplibregl.Map({
+  map = new Map({
     container: mapContainer.value,
     style: mapStyle,
     center: [37.6176, 55.7558],
     zoom: 10,
     attributionControl: true,
   });
-  map.addControl(new maplibregl.NavigationControl(), "top-right");
+  map.addControl(new NavigationControl(), "top-right");
   map.on("load", () => {
     map.addSource("objects", { type: "geojson", data });
     map.addLayer({
@@ -87,7 +94,7 @@ function renderMap() {
         "circle-stroke-color": "#ffffff",
       },
     });
-    const bounds = new maplibregl.LngLatBounds();
+    const bounds = new LngLatBounds();
     data.features.forEach((feature) => bounds.extend(feature.geometry.coordinates));
     map.fitBounds(bounds, { padding: 64, maxZoom: 14 });
     map.on("click", "objects", (event) => {

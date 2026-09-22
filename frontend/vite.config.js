@@ -6,6 +6,9 @@ export default defineConfig(({ mode }) => {
   return {
     base: env.VITE_BASE_PATH || "/",
     plugins: [vue()],
+    optimizeDeps: {
+      exclude: ["maplibre-gl"],
+    },
     server: {
       port: Number(env.VITE_PORT || 5173),
       proxy: {

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Text, TIMESTAMP, true
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Sequence, Text, TIMESTAMP, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -8,10 +8,13 @@ from app.dbapi.base import Base
 from app.dbapi.models.crud import UNSET, CrudTable, UnsetType
 
 
+EVENT_ID_SEQUENCE = Sequence("events_ingest_id_seq")
+
+
 class Event(Base):
     __tablename__ = "events"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    id: Mapped[int] = mapped_column(BigInteger, EVENT_ID_SEQUENCE, primary_key=True)
     channel_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("channels.id", name="fk_events_channel"), nullable=False
     )

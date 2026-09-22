@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.dbapi.base import Base
 from app.dbapi.models import (
-    Channel, Channels, Event, Events, Object, Objects, Permission, Role, User,
+    Channel, Channels, Event, Events, Forecast, Object, Objects, Permission, Role, User,
 )
 from app.dbapi.models.access import (
     District, Districts, Division, Divisions, district_divisions, division_objects,
@@ -658,6 +658,68 @@ async def test_dispatcher_assigns_unique_object_date_and_technician_completes(rb
     assert completed.status_code == 200
     assert completed.json()["status"] == "completed"
     assert completed.json()["completed_at"] is not None
+
+
+async def test_forecast_api_saves_event_and_prediction_in_accessible_journal(rbac_db, rbac_client):
+    from datetime import datetime
+
+    rbac_db.add_all([
+        Permission(id="forecast-view", code="forecast.view", name="Прогнозы", description="Прогнозы"),
+        Permission(id="forecast-create", code="forecast.create", name="Расчёт", description="Расчёт"),
+        Object(id=111, district_id="d1", hierarchy_level=1, object_type="test", dispatch_name="Насосная"),
+    ])
+    await rbac_db.flush()
+    await rbac_db.execute(insert(division_objects).values(division_id="v1", object_id=111))
+    rbac_db.add_all([
+        Channel(id=8812, object_id=111, sensor_name="Насос Н1", sensor_type="Состояние насоса"),
+        Event(
+            id=501,
+            channel_id=8812,
+            event_at=datetime(2026, 6, 1, 10),
+            is_alarm=True,
+            sensor_value="Неисправен",
+        ),
+    ])
+    await rbac_db.flush()
+    await grant(
+        rbac_db,
+        "dispatcher",
+        permissions=["forecast-view", "forecast-create"],
+        divisions=["v1"],
+    )
+    await rbac_db.commit()
+
+    options = await rbac_client.get("/api/forecasts/channels")
+    assert options.status_code == 200
+    assert [item["id"] for item in options.json()] == [8812]
+
+    response = await rbac_client.post("/api/forecasts", json={
+        "channel_id": 8812,
+        "event_at": "2026-09-23T14:30:00+03:00",
+        "is_alarm": False,
+        "sensor_value": "Исправен",
+    })
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["model_key"] == "pumps"
+    assert payload["status"] == "ok"
+    assert payload["target_from"].startswith("2026-09-25T00:00:00")
+    assert payload["target_until"].startswith("2026-10-25T00:00:00")
+    assert payload["warning"] in (True, False)
+    assert await rbac_db.get(Event, payload["event_id"]) is not None
+    assert await rbac_db.get(Forecast, payload["id"]) is not None
+
+    journal = await rbac_client.get("/api/forecasts")
+    assert journal.status_code == 200
+    assert [item["id"] for item in journal.json()] == [payload["id"]]
+
+    unsupported = await rbac_client.post("/api/forecasts", json={
+        "channel_id": 11,
+        "event_at": "2026-09-23T14:30:00",
+        "is_alarm": False,
+        "sensor_value": "Исправен",
+    })
+    assert unsupported.status_code == 422
 
 
 async def test_division_objects_and_user_membership_are_editable(rbac_db, rbac_client):

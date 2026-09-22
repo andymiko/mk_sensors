@@ -10,6 +10,7 @@ from app.api.admin import router as admin_router
 from app.api.access import router as access_router
 from app.api.objects import router as objects_router
 from app.api.assignments import router as assignments_router
+from app.api.forecasts import router as forecasts_router
 from app.api.dependencies import CurrentUser
 from app.config import settings
 from app.dbapi.base import get_async_session
@@ -30,6 +31,7 @@ app.include_router(admin_router, prefix=settings.API_PREFIX)
 app.include_router(access_router, prefix=settings.API_PREFIX)
 app.include_router(objects_router, prefix=settings.API_PREFIX)
 app.include_router(assignments_router, prefix=settings.API_PREFIX)
+app.include_router(forecasts_router, prefix=settings.API_PREFIX)
 
 
 @app.post(f"{settings.API_PREFIX}/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

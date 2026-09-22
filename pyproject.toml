@@ -16,6 +16,10 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn[standard]>=0.47.0",
     "loguru>=0.7.3",
+    "numpy>=1.26,<3",
+    "scikit-learn>=1.8,<1.9",
+    "joblib>=1.5,<2",
+    "threadpoolctl>=3.5,<4",
 ]
 
 [dependency-groups]

@@ -642,6 +642,44 @@ input {
   color: #829ab1;
   font-size: 0.72rem;
 }
+.forecast-form {
+  display: grid;
+  gap: 1rem;
+}
+.forecast-form h2 {
+  margin: 0.2rem 0 0;
+  font-size: 1.1rem;
+}
+.forecast-fields {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) minmax(210px, 1fr) minmax(180px, 1fr) auto auto;
+  gap: 0.8rem;
+  align-items: end;
+}
+.forecast-fields > label:not(.forecast-alarm) {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+  color: #486581;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.forecast-fields .p-select,
+.forecast-fields .p-datepicker,
+.forecast-fields .p-inputtext {
+  width: 100%;
+  min-width: 0;
+}
+.forecast-alarm {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #486581;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .empty-dashboard {
   min-height: calc(100vh - 220px);
   display: grid;
@@ -808,6 +846,9 @@ input {
   border-color: #334e68;
 }
 @media (max-width: 900px) {
+  .forecast-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .assignment-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -861,6 +902,9 @@ input {
   }
 }
 @media (max-width: 560px) {
+  .forecast-fields {
+    grid-template-columns: 1fr;
+  }
   .assignment-fields {
     grid-template-columns: 1fr;
   }

@@ -46,8 +46,7 @@ const routes = [
       {
         path: "forecasts",
         name: "forecasts",
-        component: () => import("../views/PlaceholderView.vue"),
-        props: { title: "Журнал прогнозов", eyebrow: "АНАЛИТИКА", icon: "pi-chart-line" },
+        component: () => import("../views/ForecastsView.vue"),
         meta: { permission: "forecast.view", title: "Журнал прогнозов" },
       },
       {

@@ -862,3 +862,41 @@ async def test_territory_seed_is_idempotent(rbac_db):
         .where(Object.id.in_(OBJECT_DISTRICTS))
     )).all())
     assert assigned == OBJECT_DISTRICTS
+
+
+async def test_user_seed_is_idempotent_and_assigns_roles_and_divisions(rbac_db, monkeypatch):
+    from scripts import seed_users as seed_module
+    from scripts.seed_users import USERS, seed_users
+    from scripts.seed_territories import DIVISIONS
+
+    rbac_db.add_all([
+        Role(id=code, code=code, name=code)
+        for code in ("dispatcher", "technician", "admin", "manager")
+    ])
+    rbac_db.add_all([
+        Division(id=f"seed-{code}", code=code, name=name)
+        for code, name in DIVISIONS.items()
+    ])
+    await rbac_db.flush()
+    monkeypatch.setattr(seed_module, "get_password_hash", lambda _password: "seed-hash")
+
+    first = await seed_users(rbac_db, password="password123")
+    second = await seed_users(rbac_db, password="password123")
+
+    assert first.created == 30 and first.updated == 0
+    assert second.created == 0 and second.updated == 30
+    seed_emails = [f"{user.email_local}@example.com" for user in USERS]
+    seed_ids = list(await rbac_db.scalars(select(User.id).where(User.email.in_(seed_emails))))
+    assert len(seed_ids) == 30
+    role_counts = dict((await rbac_db.execute(
+        select(Role.code, func.count())
+        .join(user_roles, user_roles.c.role_id == Role.id)
+        .where(user_roles.c.user_id.in_(seed_ids))
+        .group_by(Role.code)
+    )).all())
+    assert role_counts == {"admin": 1, "dispatcher": 4, "manager": 1, "technician": 24}
+    division_link_count = await rbac_db.scalar(
+        select(func.count()).select_from(user_divisions)
+        .where(user_divisions.c.user_id.in_(seed_ids))
+    )
+    assert division_link_count == 52

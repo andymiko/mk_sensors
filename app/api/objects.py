@@ -11,7 +11,8 @@ from app.dbapi.models import Channel, Event, Object, User
 from app.dbapi.models.access import District
 from app.rbac import accessible_channels, accessible_events, accessible_objects
 from app.schemas.access import (
-    ChannelRead, EventRead, ObjectDetails, ObjectRead, ObjectUpdate, Page, SensorState,
+    ChannelRead, EventRead, ObjectDetails, ObjectRead, ObjectUpdate, Page,
+    SensorState, TerritoryRead,
 )
 
 router = APIRouter(tags=["objects"])
@@ -34,18 +35,40 @@ async def list_objects(
     user: ObjectViewer,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    sort_by: Literal["id", "dispatch_name", "object_type", "hierarchy_level"] = "id",
+    sort_by: Literal["id", "dispatch_name", "object_type", "hierarchy_level", "district_name"] = "id",
     sort_order: Literal["asc", "desc"] = "asc",
+    search: str | None = Query(default=None, max_length=255),
+    district_id: str | None = Query(default=None, max_length=36),
 ):
-    base = accessible_objects(user.id).subquery()
+    base_query = accessible_objects(user.id)
+    if search and search.strip():
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        base_query = base_query.where(Object.dispatch_name.ilike(f"%{escaped}%", escape="\\"))
+    if district_id:
+        base_query = base_query.where(Object.district_id == district_id)
+    base = base_query.subquery()
+    sort_column = District.name if sort_by == "district_name" else getattr(base.c, sort_by)
+    ordering = sort_column.desc() if sort_order == "desc" else sort_column.asc()
     query = (
         select(*[base.c[column.name] for column in Object.__table__.columns], District.name.label("district_name"))
         .outerjoin(District, District.id == base.c.district_id)
-        .order_by(getattr(base.c, sort_by).desc() if sort_order == "desc" else getattr(base.c, sort_by), base.c.id)
+        .order_by(ordering.nullslast(), base.c.id)
     )
     total = await db.scalar(select(func.count()).select_from(base))
     rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).mappings().all()
     return {"items": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/objects/districts", response_model=list[TerritoryRead])
+async def list_object_districts(db: Db, user: ObjectViewer):
+    accessible_ids = accessible_objects(user.id).with_only_columns(Object.id)
+    return (await db.execute(
+        select(District.id, District.code, District.name)
+        .join(Object, Object.district_id == District.id)
+        .where(Object.id.in_(accessible_ids))
+        .distinct()
+        .order_by(District.name)
+    )).mappings().all()
 
 
 def _ranked_events():

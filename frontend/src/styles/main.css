@@ -443,6 +443,19 @@ input {
   display: flex;
   gap: 0.5rem;
 }
+.object-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) minmax(220px, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+.object-filter-bar label {
+  display: grid;
+  gap: 0.4rem;
+  color: #486581;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
 .object-map,
 .map-loading {
   min-height: calc(100vh - 210px);
@@ -624,6 +637,9 @@ input {
   .filter-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
+  .object-filter-bar {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 @media (max-width: 560px) {
   .page-title-row,
@@ -638,6 +654,9 @@ input {
     padding: 1rem;
   }
   .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  .object-filter-bar {
     grid-template-columns: 1fr;
   }
   .details-grid,

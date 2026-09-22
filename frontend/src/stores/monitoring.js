@@ -15,13 +15,23 @@ export const useMonitoringStore = defineStore("monitoring", () => {
   const loadingEvents = ref(false);
   const error = ref("");
 
-  async function loadObjects({ sortBy = "id", sortOrder = "asc" } = {}) {
+  async function loadObjects({
+    sortBy = "id",
+    sortOrder = "asc",
+    search = "",
+    districtId = null,
+  } = {}) {
     loadingObjects.value = true;
     error.value = "";
     try {
-      const result = await apiRequest(
-        `/objects?page_size=100&sort_by=${sortBy}&sort_order=${sortOrder}`,
-      );
+      const query = new URLSearchParams({
+        page_size: "100",
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      });
+      if (search.trim()) query.set("search", search.trim());
+      if (districtId) query.set("district_id", districtId);
+      const result = await apiRequest(`/objects?${query}`);
       objects.value = result.items;
       objectTotal.value = result.total;
     } catch (requestError) {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import Button from "primevue/button";
 import Column from "primevue/column";
 import DataTable from "primevue/datatable";
@@ -16,10 +16,13 @@ import { useMonitoringStore } from "../stores/monitoring";
 const auth = useAuthStore();
 const monitoring = useMonitoringStore();
 const districts = ref([]);
+const filterDistricts = ref([]);
 const details = ref(null);
 const editing = ref(false);
 const form = ref({});
 const saving = ref(false);
+const filters = reactive({ search: "", districtId: null });
+const sorting = reactive({ sortBy: "id", sortOrder: "asc" });
 const districtOptions = computed(() =>
   districts.value.map((item) => ({ label: item.name, value: item.id })),
 );
@@ -48,21 +51,38 @@ async function save() {
     const { id, ...payload } = form.value;
     await monitoring.updateObject(id, payload);
     editing.value = false;
-    await monitoring.loadObjects();
+    await loadObjects();
   } finally {
     saving.value = false;
   }
 }
 
-function sort(event) {
-  monitoring.loadObjects({
-    sortBy: event.sortField || "id",
-    sortOrder: event.sortOrder === -1 ? "desc" : "asc",
+function loadObjects() {
+  return monitoring.loadObjects({
+    ...sorting,
+    search: filters.search,
+    districtId: filters.districtId,
   });
 }
 
+function sort(event) {
+  sorting.sortBy = event.sortField || "id";
+  sorting.sortOrder = event.sortOrder === -1 ? "desc" : "asc";
+  loadObjects();
+}
+
+function resetFilters() {
+  filters.search = "";
+  filters.districtId = null;
+  loadObjects();
+}
+
 onMounted(async () => {
-  await monitoring.loadObjects();
+  const [, availableDistricts] = await Promise.all([
+    loadObjects(),
+    apiRequest("/objects/districts"),
+  ]);
+  filterDistricts.value = availableDistricts;
   if (auth.hasPermission("object.edit")) {
     districts.value = await apiRequest("/admin/districts");
   }
@@ -80,6 +100,28 @@ onMounted(async () => {
       <span class="result-count">{{ monitoring.objectTotal }} объектов</span>
     </div>
     <Message v-if="monitoring.error" severity="error">{{ monitoring.error }}</Message>
+    <div class="section-card object-filter-bar" aria-label="Фильтры объектов">
+      <label>
+        Название объекта
+        <InputText v-model="filters.search" placeholder="Введите название" @keyup.enter="loadObjects" />
+      </label>
+      <label>
+        Район
+        <Select
+          v-model="filters.districtId"
+          :options="filterDistricts"
+          option-label="name"
+          option-value="id"
+          placeholder="Все районы"
+          filter
+          show-clear
+        />
+      </label>
+      <div class="filter-actions">
+        <Button label="Найти" icon="pi pi-search" @click="loadObjects" />
+        <Button label="Сбросить" severity="secondary" text @click="resetFilters" />
+      </div>
+    </div>
     <div class="section-card table-card">
       <DataTable
         :value="monitoring.objects"
@@ -90,6 +132,12 @@ onMounted(async () => {
         responsive-layout="scroll"
         @sort="sort"
       >
+
+        <Column field="dispatch_name" header="Название" sortable />
+        <Column field="id" header="ID" sortable />
+        <Column field="district_name" header="Район" sortable>
+          <template #body="{ data }">{{ data.district_name || "Не назначен" }}</template>
+        </Column>
         <Column header="Действия" frozen>
           <template #body="{ data }">
             <div class="object-actions">
@@ -97,11 +145,6 @@ onMounted(async () => {
               <Button v-if="auth.hasPermission('object.edit')" label="Редактировать" icon="pi pi-pencil" size="small" @click="editObject(data)" />
             </div>
           </template>
-        </Column>
-        <Column field="dispatch_name" header="Название" sortable />
-        <Column field="id" header="ID" sortable />
-        <Column field="district_name" header="Район">
-          <template #body="{ data }">{{ data.district_name || "Не назначен" }}</template>
         </Column>
         <template #empty>Доступные объекты не найдены.</template>
       </DataTable>

@@ -389,6 +389,27 @@ async def test_objects_api_supports_sorting(rbac_db, rbac_client):
     assert [item["id"] for item in response.json()["items"]] == [2, 1]
 
 
+async def test_objects_api_searches_and_filters_by_district(rbac_db, rbac_client):
+    await grant(rbac_db, "dispatcher", divisions=["v1", "v2"])
+    response = await rbac_client.get("/api/objects?search=2&district_id=d1")
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [2]
+    assert response.json()["items"][0]["district_name"] == "Район 1"
+
+    response = await rbac_client.get(
+        "/api/objects?sort_by=district_name&sort_order=desc&page_size=100"
+    )
+    assert [item["id"] for item in response.json()["items"]] == [3, 1, 2]
+    assert (await rbac_client.get("/api/objects?search=%25")).json()["total"] == 0
+
+
+async def test_object_district_options_respect_access(rbac_db, rbac_client):
+    await grant(rbac_db, "dispatcher", divisions=["v1"])
+    response = await rbac_client.get("/api/objects/districts")
+    assert response.status_code == 200
+    assert response.json() == [{"id": "d1", "code": "d1", "name": "Район 1"}]
+
+
 async def test_scope_management_requires_permission(rbac_db, rbac_client):
     await grant(rbac_db, "technician", districts=["d1"], objects=[1])
     response = await rbac_client.put("/api/admin/users/u/roles/technician/scope", json={"district_ids": ["d2"], "object_ids": [3]})

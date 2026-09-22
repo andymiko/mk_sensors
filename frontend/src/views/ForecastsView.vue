@@ -20,13 +20,14 @@ const form = reactive({ channel_id: null, event_at: new Date(), sensor_value: ""
 const canCreate = computed(() => auth.hasPermission("forecast.create"));
 const channelOptions = computed(() => forecasts.channels.map((item) => ({
   ...item,
-  label: `${item.object_name} · ${item.sensor_name || `Канал ${item.id}`}`,
+  label: `${item.object_name} · ${item.sensor_name || `Канал ${item.id}`}${item.model_key ? "" : " · без модели"}`,
 })));
 
 const statusLabels = {
   insufficient_history: "Недостаточно истории",
   recent_alarm_failure: "Уже зарегистрирована неисправность",
   no_recent_object_data: "Нет свежих данных объекта",
+  unsupported_channel: "Канал пока не поддерживается моделью",
 };
 
 function localIso(value) {
@@ -58,8 +59,8 @@ async function submit() {
     form.is_alarm = false;
     form.event_at = new Date();
     toast.add({
-      severity: result.warning ? "warn" : "success",
-      summary: "Прогноз рассчитан",
+      severity: result.status === "unsupported_channel" ? "info" : result.warning ? "warn" : "success",
+      summary: result.status === "unsupported_channel" ? "Показание сохранено" : "Прогноз рассчитан",
       detail: conclusion(result),
       life: 5000,
     });
@@ -112,7 +113,7 @@ onMounted(async () => {
         <Column field="object_name" header="Объект" sortable><template #body="{ data }"><strong>{{ data.object_name }}</strong><span class="table-subtitle">ID {{ data.object_id }}</span></template></Column>
         <Column field="sensor_name" header="Датчик" sortable><template #body="{ data }">{{ data.sensor_name || `Канал ${data.channel_id}` }}<span class="table-subtitle">{{ data.sensor_type || "Тип не указан" }}</span></template></Column>
         <Column field="event_at" header="Показание"><template #body="{ data }">{{ data.sensor_value ?? "—" }}<span class="table-subtitle">{{ formatDate(data.event_at) }}</span></template></Column>
-        <Column header="Период прогноза"><template #body="{ data }">{{ formatDate(data.target_from) }}<span class="table-subtitle">до {{ formatDate(data.target_until) }}</span></template></Column>
+        <Column header="Период прогноза"><template #body="{ data }"><template v-if="data.status === 'ok'">{{ formatDate(data.target_from) }}<span class="table-subtitle">до {{ formatDate(data.target_until) }}</span></template><span v-else>—</span></template></Column>
         <Column header="Риск"><template #body="{ data }">{{ data.risk_score == null ? "—" : `${(data.risk_score * 100).toFixed(1)}%` }}</template></Column>
         <Column header="Результат"><template #body="{ data }"><Tag :value="conclusion(data)" :severity="severity(data)" /></template></Column>
         <template #empty>Прогнозов пока нет.</template>

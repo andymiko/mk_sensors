@@ -86,10 +86,10 @@ async def list_forecast_channels(db: Db, user: ForecastCreator):
             Object.dispatch_name.label("object_name"),
         )
         .join(Object, Object.id == Channel.object_id)
-        .where(Channel.id.in_(visible_ids), Channel.id.in_(models))
+        .where(Channel.id.in_(visible_ids))
         .order_by(Object.dispatch_name, Channel.sensor_name, Channel.id)
     )).mappings().all()
-    return [{**row, "model_key": models[row["id"]]} for row in rows]
+    return [{**row, "model_key": models.get(row["id"])} for row in rows]
 
 
 @router.post("", response_model=ForecastRead, status_code=status.HTTP_201_CREATED)
@@ -99,13 +99,6 @@ async def create_forecast(payload: ForecastCreate, db: Db, user: ForecastCreator
     )
     if channel is None or channel.object_id is None:
         raise HTTPException(404, "Доступный канал с привязанным объектом не найден")
-
-    model_key = await to_thread.run_sync(model_for_channel, channel.id)
-    if model_key is None:
-        raise HTTPException(422, "Канал не поддерживается моделями насосов или вентиляции")
-    bundle = await to_thread.run_sync(load_bundle, model_key)
-    if registered_object_id(bundle, channel.id) != channel.object_id:
-        raise HTTPException(422, "Привязка канала к объекту не соответствует версии модели")
 
     event_at = _moscow_naive(payload.event_at)
     forecast_at = datetime.combine(event_at.date() + timedelta(days=1), time.min)
@@ -118,34 +111,51 @@ async def create_forecast(payload: ForecastCreate, db: Db, user: ForecastCreator
     db.add(event)
     await db.flush()
 
-    fault_times = list(await db.scalars(
-        select(Event.event_at)
-        .where(
-            Event.channel_id == channel.id,
-            Event.event_at < forecast_at,
-            Event.is_alarm.is_(True),
-            Event.sensor_value == "Неисправен",
-        )
-        .order_by(Event.event_at)
-    ))
-    activity_from = forecast_at - timedelta(days=bundle["activity_days"])
-    has_recent_data = bool(await db.scalar(
-        select(exists().where(
-            Event.channel_id.in_(
-                select(Channel.id).where(Channel.object_id == channel.object_id)
-            ),
-            Event.event_at >= activity_from,
-            Event.event_at < forecast_at,
+    model_key = await to_thread.run_sync(model_for_channel, channel.id)
+    if model_key is None:
+        model_key = "unsupported"
+        prediction = {
+            "model_version": "not_available",
+            "forecast_at": forecast_at,
+            "target_from": forecast_at + timedelta(days=1),
+            "target_until": forecast_at + timedelta(days=31),
+            "status": "unsupported_channel",
+            "risk_score": None,
+            "threshold": None,
+            "warning": None,
+        }
+    else:
+        bundle = await to_thread.run_sync(load_bundle, model_key)
+        if registered_object_id(bundle, channel.id) != channel.object_id:
+            raise HTTPException(422, "Привязка канала к объекту не соответствует версии модели")
+        fault_times = list(await db.scalars(
+            select(Event.event_at)
+            .where(
+                Event.channel_id == channel.id,
+                Event.event_at < forecast_at,
+                Event.is_alarm.is_(True),
+                Event.sensor_value == "Неисправен",
+            )
+            .order_by(Event.event_at)
         ))
-    ))
-    prediction = await to_thread.run_sync(partial(
-        predict_failure,
-        bundle,
-        channel.id,
-        forecast_at,
-        fault_times,
-        has_recent_data,
-    ))
+        activity_from = forecast_at - timedelta(days=bundle["activity_days"])
+        has_recent_data = bool(await db.scalar(
+            select(exists().where(
+                Event.channel_id.in_(
+                    select(Channel.id).where(Channel.object_id == channel.object_id)
+                ),
+                Event.event_at >= activity_from,
+                Event.event_at < forecast_at,
+            ))
+        ))
+        prediction = await to_thread.run_sync(partial(
+            predict_failure,
+            bundle,
+            channel.id,
+            forecast_at,
+            fault_times,
+            has_recent_data,
+        ))
     forecast = Forecast(
         event_id=event.id,
         channel_id=channel.id,

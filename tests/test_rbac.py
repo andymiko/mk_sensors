@@ -691,7 +691,8 @@ async def test_forecast_api_saves_event_and_prediction_in_accessible_journal(rba
 
     options = await rbac_client.get("/api/forecasts/channels")
     assert options.status_code == 200
-    assert [item["id"] for item in options.json()] == [8812]
+    assert {item["id"] for item in options.json()} == {11, 8812}
+    assert next(item for item in options.json() if item["id"] == 11)["model_key"] is None
 
     response = await rbac_client.post("/api/forecasts", json={
         "channel_id": 8812,
@@ -719,7 +720,16 @@ async def test_forecast_api_saves_event_and_prediction_in_accessible_journal(rba
         "is_alarm": False,
         "sensor_value": "Исправен",
     })
-    assert unsupported.status_code == 422
+    assert unsupported.status_code == 201
+    unsupported_payload = unsupported.json()
+    assert unsupported_payload["status"] == "unsupported_channel"
+    assert unsupported_payload["model_key"] == "unsupported"
+    assert unsupported_payload["risk_score"] is None
+    assert unsupported_payload["warning"] is None
+    assert await rbac_db.get(Event, unsupported_payload["event_id"]) is not None
+    assert await rbac_db.get(Forecast, unsupported_payload["id"]) is not None
+    journal = await rbac_client.get("/api/forecasts")
+    assert {item["id"] for item in journal.json()} == {payload["id"], unsupported_payload["id"]}
 
 
 async def test_division_objects_and_user_membership_are_editable(rbac_db, rbac_client):

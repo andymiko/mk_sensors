@@ -40,4 +40,4 @@ class ForecastChannelOption(BaseModel):
     sensor_type: str | None
     object_id: int
     object_name: str
-    model_key: str
+    model_key: str | None

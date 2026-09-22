@@ -20,9 +20,6 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "base_project"
     CORS_ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
-    STORAGE_DIR: Path = BASE_DIR / "storage"
-    ALLOWED_EXTENSIONS: list[str] = []
-    MAX_FILE_SIZE: int = 100 * 1024 * 1024
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False)
 
     @field_validator("SECRET_KEY")
@@ -31,12 +28,6 @@ class Settings(BaseSettings):
         if len(value) < 32 or value == "change-me":
             raise ValueError("SECRET_KEY must contain at least 32 non-default characters")
         return value
-
-    @property
-    def upload_dir(self) -> Path:
-        directory = self.STORAGE_DIR / "uploads"
-        directory.mkdir(parents=True, exist_ok=True)
-        return directory
 
     @property
     def async_db_url(self) -> str:

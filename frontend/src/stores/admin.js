@@ -6,7 +6,6 @@ export const useAdminStore = defineStore("admin", () => {
   const users = ref([]);
   const roles = ref([]);
   const permissions = ref([]);
-  const files = ref([]);
   const loading = ref(false);
   async function loadCatalog() {
     [roles.value, permissions.value] = await Promise.all([
@@ -17,8 +16,6 @@ export const useAdminStore = defineStore("admin", () => {
   async function loadAll() {
     loading.value = true;
     try {
-      const page = await apiRequest("/admin/files?page_size=100");
-      files.value = page.items;
       await Promise.all([
         loadCatalog(),
         apiRequest("/admin/users").then((data) => {
@@ -72,7 +69,6 @@ export const useAdminStore = defineStore("admin", () => {
     users,
     roles,
     permissions,
-    files,
     loading,
     loadAll,
     setUserStatus,

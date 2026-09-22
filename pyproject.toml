@@ -13,7 +13,6 @@ dependencies = [
     "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.15.0",
     "python-jose>=3.5.0",
-    "python-multipart>=0.0.29",
     "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn[standard]>=0.47.0",
     "loguru>=0.7.3",

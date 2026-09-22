@@ -2,9 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.schemas.files import FileModel
-
-
 class RoleModel(BaseModel):
     id: str
     code: str
@@ -37,6 +34,4 @@ class UserRead(BaseModel):
 
 
 class UserModel(UserRead):
-    files: List[FileModel] = Field(default_factory=list)
-
-    model_config = ConfigDict(from_attributes=True)
+    pass

@@ -27,9 +27,6 @@ htmlcov/
 logs/
 *.log
 
-# Runtime data
-/storage/uploads/*
-!/storage/uploads/.gitkeep
 celerybeat-schedule*
 
 # Frontend

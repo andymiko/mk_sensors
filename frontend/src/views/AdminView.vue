@@ -35,18 +35,20 @@ onMounted(() => admin.loadAll());
     <div class="page-title">
       <span class="eyebrow">УПРАВЛЕНИЕ</span>
       <h1>Администрирование</h1>
-      <p>Пользователи, роли, разрешения и все файлы системы.</p>
+      <p>Пользователи, роли и права доступа к функциям системы.</p>
     </div>
     <Tabs value="users" class="section-card admin-tabs"
       ><TabList
         ><Tab value="users">Пользователи</Tab><Tab value="roles">Роли</Tab
-        ><Tab value="permissions">Разрешения</Tab
-        ><Tab value="files">Файлы</Tab></TabList
+        ><Tab value="permissions">Разрешения</Tab></TabList
       ><TabPanels>
         <TabPanel value="users"
           ><DataTable
             :value="admin.users"
             :loading="admin.loading"
+            class="admin-table"
+            scrollable
+            table-style="min-width: 60rem"
             responsive-layout="scroll"
             ><Column field="name" header="ФИО" /><Column
               field="email"
@@ -73,6 +75,9 @@ onMounted(() => admin.loadAll());
                   option-label="name"
                   option-value="id"
                   display="chip"
+                  :max-selected-labels="2"
+                  selected-items-label="{0} ролей выбрано"
+                  class="admin-multiselect"
                   @update:model-value="
                     admin.setUserRoles(data, $event)
                   " /></template></Column></DataTable
@@ -82,7 +87,11 @@ onMounted(() => admin.loadAll());
             <h2>Роли</h2>
             <Button label="Создать" icon="pi pi-plus" @click="open('role')" />
           </div>
-          <DataTable :value="admin.roles"
+          <DataTable
+            :value="admin.roles"
+            class="admin-table"
+            scrollable
+            table-style="min-width: 52rem"
             ><Column field="name" header="Название" /><Column
               field="code"
               header="Код" /><Column header="Разрешения"
@@ -93,6 +102,9 @@ onMounted(() => admin.loadAll());
                   option-label="name"
                   option-value="id"
                   display="chip"
+                  :max-selected-labels="2"
+                  selected-items-label="{0} разрешений выбрано"
+                  class="admin-multiselect admin-permissions-select"
                   @update:model-value="
                     admin.setRolePermissions(data, $event)
                   " /></template></Column></DataTable
@@ -106,25 +118,17 @@ onMounted(() => admin.loadAll());
               @click="open('permission')"
             />
           </div>
-          <DataTable :value="admin.permissions"
+          <DataTable
+            :value="admin.permissions"
+            class="admin-table"
+            scrollable
+            table-style="min-width: 52rem"
             ><Column field="name" header="Название" /><Column
               field="code"
               header="Код" /><Column
               field="description"
               header="Описание" /></DataTable
         ></TabPanel>
-        <TabPanel value="files"
-          ><DataTable :value="admin.files"
-            ><Column field="original_name" header="Файл" /><Column
-              field="user_id"
-              header="Пользователь"
-            /><Column field="content_type" header="Тип" /><Column header="Дата"
-              ><template #body="{ data }">{{
-                new Date(data.created_at * 1000).toLocaleString("ru-RU")
-              }}</template></Column
-            ></DataTable
-          ></TabPanel
-        >
       </TabPanels></Tabs
     >
     <Dialog

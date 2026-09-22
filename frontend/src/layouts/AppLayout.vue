@@ -14,19 +14,13 @@ const router = useRouter();
 const mobileOpen = ref(false);
 const items = computed(() =>
   [
-    { label: "Обзор", icon: "pi-home", name: "dashboard" },
-    {
-      label: "Загрузить файл",
-      icon: "pi-cloud-upload",
-      name: "upload",
-      permission: "file.upload",
-    },
-    {
-      label: "Мои файлы",
-      icon: "pi-folder",
-      name: "files",
-      permission: "file.download",
-    },
+    { label: "Дашборд", icon: "pi-home", name: "dashboard" },
+    { label: "Карта", icon: "pi-map", name: "map", permission: "map.view" },
+    { label: "Объекты контроля", icon: "pi-building", name: "objects", permission: "object.view" },
+    { label: "Текущие показания", icon: "pi-wave-pulse", name: "events", permission: "event.view" },
+    { label: "Журнал прогнозов", icon: "pi-chart-line", name: "forecasts", permission: "forecast.view" },
+    { label: "Уведомления", icon: "pi-bell", name: "notifications", permission: "notification.view" },
+    { label: "Назначения", icon: "pi-sitemap", name: "assignments", permission: "access.manage" },
     {
       label: "Администрирование",
       icon: "pi-shield",
@@ -73,7 +67,7 @@ function logout() {
           v-for="item in items"
           :key="item.name"
           :to="{ name: item.name }"
-          class="nav-link"
+          :class="['nav-link', { active: route.name === item.name }]"
           @click="mobileOpen = false"
           ><i :class="['pi', item.icon]" /><span>{{
             item.label
@@ -120,7 +114,7 @@ function logout() {
           />
         </div>
       </header>
-      <main class="page-content"><RouterView /></main>
+      <main class="page-content"><RouterView :key="route.fullPath" /></main>
     </section>
   </div>
 </template>

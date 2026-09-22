@@ -39,18 +39,3 @@ export async function apiRequest(path, options = {}) {
     );
   return payload;
 }
-
-export async function downloadFile(file) {
-  const response = await fetch(`${API_BASE_URL}/files/${file.id}/download`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok)
-    throw new ApiError("Не удалось скачать файл", response.status);
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.original_name;
-  link.click();
-  URL.revokeObjectURL(url);
-}

@@ -10,7 +10,6 @@ from app.api.admin import router as admin_router
 from app.api.access import router as access_router
 from app.api.objects import router as objects_router
 from app.api.dependencies import CurrentUser
-from app.api.files import router as files_router
 from app.config import settings
 from app.dbapi.base import get_async_session
 from app.dbapi.models.auths import Auths
@@ -21,14 +20,12 @@ from app.utils.security import create_access_token
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    settings.upload_dir
     yield
 
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type"])
 app.include_router(admin_router, prefix=settings.API_PREFIX)
-app.include_router(files_router, prefix=settings.API_PREFIX)
 app.include_router(access_router, prefix=settings.API_PREFIX)
 app.include_router(objects_router, prefix=settings.API_PREFIX)
 

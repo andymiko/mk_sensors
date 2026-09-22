@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -56,6 +57,17 @@ class ChannelRead(BaseModel):
     engineering_system_type: str | None
     sensor_type: str | None
     engineering_system_tag: str | None
+    sensor_name: str | None
+
+
+class EventRead(BaseModel):
+    id: int
+    channel_id: int
+    object_id: int | None
+    event_at: datetime
+    is_alarm: bool
+    sensor_value: str | None
+    sensor_type: str | None
     sensor_name: str | None
 
 

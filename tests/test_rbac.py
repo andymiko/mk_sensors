@@ -352,6 +352,15 @@ async def test_objects_api_filters_totals_and_detail(rbac_db, rbac_client):
     assert (await rbac_client.get("/api/objects/3")).status_code == 404
 
 
+async def test_objects_api_supports_sorting(rbac_db, rbac_client):
+    await grant(rbac_db, "dispatcher", districts=["d1"])
+    response = await rbac_client.get(
+        "/api/objects?sort_by=dispatch_name&sort_order=desc&page_size=100"
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [2, 1]
+
+
 async def test_scope_management_requires_permission(rbac_db, rbac_client):
     await grant(rbac_db, "technician", districts=["d1"], objects=[1])
     response = await rbac_client.put("/api/admin/users/u/roles/technician/scope", json={"district_ids": ["d2"], "object_ids": [3]})
@@ -442,6 +451,40 @@ async def test_channels_api_checks_scope_and_permission(rbac_db, rbac_client):
     assert (await rbac_client.get("/api/channels/12")).status_code == 404
     assert (await rbac_client.get("/api/channels?object_id=3")).json()["items"] == []
     assert (await rbac_client.get("/api/objects")).status_code == 403
+
+
+async def test_events_api_filters_access_date_object_and_sensor(rbac_db, rbac_client):
+    from datetime import datetime
+
+    rbac_db.add(Permission(id="event", code="event.view", name="События", description="События"))
+    await rbac_db.flush()
+    await grant(rbac_db, "technician", permissions=["event"], districts=["d1"], objects=[1])
+    channel = await rbac_db.get(Channel, 11)
+    channel.sensor_type = "temperature"
+    rbac_db.add_all([
+        Event(id=201, channel_id=11, event_at=datetime(2026, 1, 1, 10), is_alarm=False, sensor_value="10"),
+        Event(id=202, channel_id=11, event_at=datetime(2026, 1, 2, 10), is_alarm=True, sensor_value="20"),
+        Event(id=203, channel_id=12, event_at=datetime(2026, 1, 2, 10), is_alarm=True, sensor_value="30"),
+    ])
+    await rbac_db.commit()
+
+    response = await rbac_client.get(
+        "/api/events?date_from=2026-01-02T00:00:00&object_id=1&sensor_type=temperature"
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == 202
+    assert response.json()["items"][0]["object_id"] == 1
+
+
+async def test_events_api_rejects_inverted_date_range(rbac_db, rbac_client):
+    rbac_db.add(Permission(id="event", code="event.view", name="События", description="События"))
+    await rbac_db.flush()
+    await grant(rbac_db, "technician", permissions=["event"], districts=["d1"], objects=[1])
+    response = await rbac_client.get(
+        "/api/events?date_from=2026-02-01T00:00:00&date_to=2026-01-01T00:00:00"
+    )
+    assert response.status_code == 422
 
 
 async def test_seed_is_idempotent_and_preserves_existing_roles(rbac_db):

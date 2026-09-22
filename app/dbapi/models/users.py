@@ -24,11 +24,6 @@ class User(Base):
         back_populates="users",
         lazy="selectin"
     )
-    files: Mapped[List["File"]] = relationship(
-        "File",
-        back_populates="user",
-        cascade="all, delete-orphan"
-    )
     @property
     def role_codes(self) -> Set[str] | None:
         return { role.code for role in self.roles }

@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,6 @@ from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models.associations import role_permissions, user_roles
 from app.dbapi.models.auths import Auth
-from app.dbapi.models.files import Files
 from app.dbapi.models.permissions import Permission
 from app.dbapi.models.roles import Role
 from app.dbapi.models.users import User
@@ -19,7 +18,6 @@ from app.schemas.admin import (
     PermissionCreate, PermissionUpdate, RoleCreate, RolePermissionsUpdate,
     RoleUpdate, UserRolesUpdate, UserStatusUpdate,
 )
-from app.schemas.files import FileModel, FilePage
 from app.schemas.users import PermissionModel, RoleModel, UserRead
 
 
@@ -161,22 +159,6 @@ async def update_permission(permission_id: str, payload: PermissionUpdate, db: D
     permission.name, permission.description = payload.name, payload.description
     await db.commit()
     return PermissionModel.model_validate(permission)
-
-
-@router.get("/files", response_model=FilePage)
-async def list_all_files(
-    db: Db,
-    current_user: Annotated[User, Depends(require_permission("file.download"))],
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    search: str | None = Query(None, max_length=255),
-):
-    if not current_user.is_admin():
-        raise HTTPException(403, "Доступно только администраторам")
-    items, total = await Files.page(
-        page=page, page_size=page_size, search=search, db=db,
-    )
-    return FilePage(items=items, total=total, page=page, page_size=page_size)
 
 
 async def _load_user(db: AsyncSession, user_id: str) -> UserRead:

@@ -1,5 +1,6 @@
 import pytest
 
+from app.dbapi.models import Events
 from app.dbapi.models.access import Districts
 
 
@@ -22,3 +23,13 @@ async def test_primary_division_must_be_linked_to_district():
             division_ids=["division-1"],
             primary_division_id="division-2",
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("offset", "limit", "message"),
+    [(-1, 100, "offset"), (0, 0, "limit"), (0, 1001, "limit")],
+)
+async def test_crud_page_validates_bounds_before_query(offset, limit, message):
+    with pytest.raises(ValueError, match=message):
+        await Events.get_events_page(offset=offset, limit=limit)

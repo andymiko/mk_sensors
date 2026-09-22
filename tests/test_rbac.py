@@ -7,10 +7,13 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, func, insert, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.dbapi.base import Base
-from app.dbapi.models import Channel, Event, Object, Permission, Role, User
+from app.dbapi.models import (
+    Channel, Channels, Event, Events, Object, Objects, Permission, Role, User,
+)
 from app.dbapi.models.access import (
     District, Districts, Division, Divisions, district_divisions, user_role_districts,
     user_role_divisions, user_role_objects,
@@ -62,7 +65,7 @@ async def rbac_db():
                 ])
                 await db.flush()
                 db.add_all([Channel(id=11, object_id=1), Channel(id=12, object_id=3), Channel(id=13)])
-                await db.flush()
+                await db.commit()
                 yield db
             await transaction.rollback()
     finally:
@@ -141,6 +144,126 @@ async def test_insert_new_district_requires_division(rbac_db):
             division_ids=[],
             db=rbac_db,
         )
+
+
+async def test_divisions_crud(rbac_db):
+    division = await Divisions.insert_new_division("crud-division", "До", db=rbac_db)
+    assert await Divisions.get_division_by_id(division.id, db=rbac_db) is division
+    assert (await Divisions.get_division_by_code("crud-division", db=rbac_db)).id == division.id
+    updated = await Divisions.update_division_by_id(
+        division.id, code="crud-division-new", name="После", db=rbac_db,
+    )
+    assert (updated.code, updated.name) == ("crud-division-new", "После")
+    items, total = await Divisions.get_divisions_page(offset=0, limit=100, db=rbac_db)
+    assert updated in items and total >= 3
+    assert await Divisions.delete_division_by_id(division.id, db=rbac_db)
+    assert not await Divisions.delete_division_by_id(division.id, db=rbac_db)
+
+
+async def test_districts_crud_updates_division_links(rbac_db):
+    district = await Districts.insert_new_district(
+        "crud-district", "До", ["v1"], db=rbac_db,
+    )
+    assert await Districts.get_district_by_id(district.id, db=rbac_db) is district
+    assert (await Districts.get_district_by_code("crud-district", db=rbac_db)).id == district.id
+    updated = await Districts.update_district_by_id(
+        district.id,
+        code="crud-district-new",
+        name="После",
+        division_ids=["v1", "v2"],
+        primary_division_id="v2",
+        db=rbac_db,
+    )
+    assert updated.division_id == "v2"
+    linked_ids = set(await rbac_db.scalars(
+        select(district_divisions.c.division_id)
+        .where(district_divisions.c.district_id == district.id)
+    ))
+    assert linked_ids == {"v1", "v2"}
+    items, total = await Districts.get_districts_page(offset=0, limit=100, db=rbac_db)
+    assert updated in items and total >= 3
+    assert await Districts.delete_district_by_id(district.id, db=rbac_db)
+
+
+async def test_invalid_district_update_rolls_back_fields(rbac_db):
+    with pytest.raises(ValueError, match="Неизвестные подразделения"):
+        await Districts.update_district_by_id(
+            "d1",
+            code="must-not-persist",
+            division_ids=["missing"],
+            db=rbac_db,
+        )
+    district = await Districts.get_district_by_id("d1", db=rbac_db)
+    assert district.code == "d1"
+
+
+async def test_objects_crud(rbac_db):
+    obj = await Objects.insert_new_object(
+        id=100,
+        hierarchy_level=2,
+        parent_id=1,
+        district_id="d1",
+        object_type="equipment",
+        dispatch_name="Объект",
+        longitude=37.6,
+        latitude=55.7,
+        db=rbac_db,
+    )
+    assert await Objects.get_object_by_id(100, db=rbac_db) is obj
+    updated = await Objects.update_object_by_id(
+        100, parent_id=None, dispatch_name="Обновлён", longitude=None, db=rbac_db,
+    )
+    assert updated.parent_id is None and updated.longitude is None
+    items, total = await Objects.get_objects_page(offset=0, limit=2, db=rbac_db)
+    assert len(items) == 2 and total == 5
+    assert await Objects.delete_object_by_id(100, db=rbac_db)
+
+
+async def test_delete_parent_with_channels_is_rejected(rbac_db):
+    with pytest.raises(IntegrityError):
+        await Objects.delete_object_by_id(1, db=rbac_db)
+    assert await Objects.get_object_by_id(1, db=rbac_db) is not None
+
+
+async def test_channels_crud(rbac_db):
+    channel = await Channels.insert_new_channel(
+        id=100,
+        object_id=1,
+        engineering_system_type="heat",
+        sensor_type="temperature",
+        engineering_system_tag="T1",
+        sensor_name="Датчик",
+        db=rbac_db,
+    )
+    assert await Channels.get_channel_by_id(100, db=rbac_db) is channel
+    updated = await Channels.update_channel_by_id(
+        100, object_id=None, sensor_name="Обновлён", db=rbac_db,
+    )
+    assert updated.object_id is None and updated.sensor_name == "Обновлён"
+    items, total = await Channels.get_channels_page(offset=0, limit=2, db=rbac_db)
+    assert len(items) == 2 and total == 4
+    assert await Channels.delete_channel_by_id(100, db=rbac_db)
+
+
+async def test_events_crud(rbac_db):
+    from datetime import datetime
+
+    event = await Events.insert_new_event(
+        id=100,
+        channel_id=11,
+        event_at=datetime(2026, 1, 2, 10, 0),
+        is_alarm=False,
+        sensor_value="10",
+        db=rbac_db,
+    )
+    assert await Events.get_event_by_id(100, db=rbac_db) is event
+    updated = await Events.update_event_by_id(
+        100, is_alarm=True, sensor_value=None, db=rbac_db,
+    )
+    assert updated.is_alarm and updated.sensor_value is None
+    items, total = await Events.get_events_page(offset=0, limit=100, db=rbac_db)
+    assert updated in items and total == 1
+    assert await Events.delete_event_by_id(100, db=rbac_db)
 
 
 async def test_no_assignments_deny_access(rbac_db):

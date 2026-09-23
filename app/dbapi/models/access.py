@@ -1,4 +1,3 @@
-"""Territories and role-specific resource assignments."""
 from collections.abc import Sequence
 import uuid
 
@@ -110,7 +109,7 @@ class DistrictsTable(CrudTable[District]):
         primary_division_id: str | None = None,
         db: AsyncSession | None = None,
     ) -> District:
-        """Create a district and all its division links in one transaction."""
+
         unique_division_ids = tuple(dict.fromkeys(division_ids))
         if not unique_division_ids:
             raise ValueError("Укажите хотя бы одно подразделение")

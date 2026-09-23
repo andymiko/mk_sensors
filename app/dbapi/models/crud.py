@@ -1,4 +1,3 @@
-"""Shared primitives for typed async CRUD repositories."""
 from typing import Generic, TypeVar
 
 from sqlalchemy import func, select

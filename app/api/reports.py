@@ -1,4 +1,3 @@
-"""Exports the four operational tables within the current user's RBAC scope."""
 import csv
 from datetime import date, datetime
 from io import BytesIO, StringIO

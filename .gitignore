@@ -42,3 +42,5 @@ old_files/
 docs/
 tests/
 storage/
+*/ml_models/*_metadata.json
+scripts/

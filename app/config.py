@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Base Project"
+    PROJECT_NAME: str = "MK SENSORS"
     API_PREFIX: str = "/api"
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

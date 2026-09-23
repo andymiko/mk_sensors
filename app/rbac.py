@@ -1,4 +1,3 @@
-"""SQL policies: combine permissions and scope within the same role."""
 from sqlalchemy import and_, or_, select
 
 from app.dbapi.models import Channel, Event, Object, Permission, Role, User

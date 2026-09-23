@@ -74,8 +74,8 @@ onMounted(load);
     <Message v-if="forecasts.error" severity="error">{{ forecasts.error }}</Message>
 
     <div class="section-card filter-grid" aria-label="Фильтры прогнозов">
-      <label>С даты<DatePicker v-model="filters.dateFrom" show-time hour-format="24" /></label>
-      <label>По дату<DatePicker v-model="filters.dateTo" show-time hour-format="24" /></label>
+      <label>С даты<DatePicker v-model="filters.dateFrom" date-format="dd.mm.yy" show-time hour-format="24" /></label>
+      <label>По дату<DatePicker v-model="filters.dateTo" date-format="dd.mm.yy" show-time hour-format="24" /></label>
       <label>Сортировка по риску<Select v-model="filters.riskOrder" :options="riskOptions" option-label="label" option-value="value" /></label>
       <div class="filter-actions"><Button label="Применить" icon="pi pi-filter" @click="load" /><Button label="Сбросить" severity="secondary" text @click="reset" /></div>
     </div>

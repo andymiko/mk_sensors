@@ -65,8 +65,8 @@ onMounted(async () => {
       <div class="page-title-actions"><ReportButtons dataset="events" :params="reportParams" /><span class="result-count">{{ monitoring.eventTotal }} событий</span></div>
     </div>
     <div class="section-card filter-grid" aria-label="Фильтры показаний">
-      <label>С даты<DatePicker v-model="filters.dateFrom" show-time hour-format="24" /></label>
-      <label>По дату<DatePicker v-model="filters.dateTo" show-time hour-format="24" /></label>
+      <label>С даты<DatePicker v-model="filters.dateFrom" date-format="dd.mm.yy" show-time hour-format="24" /></label>
+      <label>По дату<DatePicker v-model="filters.dateTo" date-format="dd.mm.yy" show-time hour-format="24" /></label>
       <label>Объект<Select v-model="filters.objectId" :options="objectOptions" option-label="label" option-value="value" show-clear filter /></label>
       <label>Тип датчика<Select v-model="filters.sensorType" :options="sensorOptions" option-label="label" option-value="value" show-clear /></label>
       <div class="filter-actions">

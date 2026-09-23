@@ -11,7 +11,8 @@ from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,21 @@ from app.rbac import accessible_events, accessible_objects
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 Db = Annotated[AsyncSession, Depends(get_async_session)]
+REPORT_TITLES = {
+    "objects": "Объекты контроля",
+    "events": "Текущие показания",
+    "assignments": "Назначения",
+    "forecasts": "Журнал прогнозов",
+}
+STATUS_LABELS = {
+    "ok": "Прогноз рассчитан",
+    "insufficient_history": "Недостаточно истории",
+    "recent_alarm_failure": "Уже зарегистрирована неисправность",
+    "no_recent_object_data": "Нет свежих данных объекта",
+    "unsupported_channel": "Канал пока не поддерживается моделью",
+    "pending": "Ожидает выполнения",
+    "completed": "Выполнено",
+}
 
 
 def _query(
@@ -99,6 +115,33 @@ def _value(value):
     return value
 
 
+def _report_value(header, value):
+    if header in {"Статус", "Статус проверки"} and value in STATUS_LABELS:
+        return STATUS_LABELS[value]
+    return _value(value)
+
+
+def _filter_description(
+    date_from, date_to, search, district_id, object_id, sensor_type, risk_order,
+):
+    filters = []
+    if date_from:
+        filters.append(f"с даты: {_value(date_from)}")
+    if date_to:
+        filters.append(f"по дату: {_value(date_to)}")
+    if search:
+        filters.append(f"поиск: {search}")
+    if district_id:
+        filters.append(f"район: {district_id}")
+    if object_id is not None:
+        filters.append(f"объект ID: {object_id}")
+    if sensor_type:
+        filters.append(f"тип датчика: {sensor_type}")
+    if risk_order != "desc":
+        filters.append("риск: по возрастанию")
+    return "Фильтры: " + ("; ".join(filters) if filters else "не применены")
+
+
 def _pdf_font():
     paths = (
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
@@ -131,6 +174,11 @@ async def export_report(
         dataset, user, date_from, date_to, search, district_id,
         object_id, sensor_type, risk_order,
     )
+    title = f"Отчёт: {REPORT_TITLES[dataset]}"
+    filters_text = _filter_description(
+        date_from, date_to, search, district_id, object_id, sensor_type, risk_order,
+    )
+    generated_text = f"Сформирован: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
     filename = f"{dataset}-{datetime.now().date().isoformat()}.{file_format}"
     disposition = {"Content-Disposition": f'attachment; filename="{filename}"'}
     if file_format == "csv":
@@ -145,22 +193,29 @@ async def export_report(
         async def content():
             yield b"\xef\xbb\xbf" + csv_line(headers)
             async for row in result:
-                yield csv_line([_value(value) for value in row])
+                yield csv_line([_report_value(header, value) for header, value in zip(headers, row)])
 
         return StreamingResponse(content(), media_type="text/csv; charset=utf-8", headers=disposition)
 
     total = await db.scalar(select(func.count()).select_from(query.order_by(None).subquery())) or 0
-    if file_format == "pdf" and total > 100:
-        raise HTTPException(422, "PDF доступен только для отчётов до 100 строк")
+    if file_format == "pdf" and total > 10_000:
+        raise HTTPException(422, "PDF доступен только для отчётов до 10 000 строк")
     if file_format == "xlsx" and total > 1_000_000:
         raise HTTPException(422, "XLSX доступен только для отчётов до 1 000 000 строк")
     result = await db.execute(query)
     headers = list(result.keys())
-    rows = [[_value(value) for value in row] for row in result]
+    rows = [
+        [_report_value(header, value) for header, value in zip(headers, row)]
+        for row in result
+    ]
     if file_format == "xlsx":
         output = BytesIO()
         workbook = Workbook(write_only=True)
         sheet = workbook.create_sheet("Отчёт")
+        sheet.append([title])
+        sheet.append([generated_text])
+        sheet.append([filters_text])
+        sheet.append([])
         sheet.append(headers)
         for row in rows:
             sheet.append(row)
@@ -171,6 +226,9 @@ async def export_report(
     output = BytesIO()
     font = _pdf_font()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
+    styles = getSampleStyleSheet()
+    for style_name in ("Title", "Normal"):
+        styles[style_name].fontName = font
     table = Table([headers, *[[str(value) for value in row] for row in rows]], repeatRows=1)
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), font),
@@ -179,6 +237,12 @@ async def export_report(
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
-    document.build([table])
+    document.build([
+        Paragraph(title, styles["Title"]),
+        Paragraph(generated_text, styles["Normal"]),
+        Paragraph(filters_text, styles["Normal"]),
+        Spacer(1, 12),
+        table,
+    ])
     output.seek(0)
     return StreamingResponse(output, media_type="application/pdf", headers=disposition)

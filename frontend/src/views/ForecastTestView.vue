@@ -57,7 +57,7 @@ onMounted(() => forecasts.loadChannels());
     <div class="section-card forecast-form">
       <div class="forecast-fields">
         <label>Датчик<Select v-model="form.channel_id" :options="channelOptions" option-label="label" option-value="id" filter placeholder="Выберите датчик" /></label>
-        <label>Дата и время<DatePicker v-model="form.event_at" show-time hour-format="24" show-icon /></label>
+        <label>Дата и время<DatePicker v-model="form.event_at" date-format="dd.mm.yy" show-time hour-format="24" show-icon /></label>
         <label>Значение<InputText v-model="form.sensor_value" placeholder="Например: Исправен" /></label>
         <label class="forecast-alarm"><Checkbox v-model="form.is_alarm" binary />Тревожное показание</label>
         <Button label="Сохранить и рассчитать" icon="pi pi-chart-line" :loading="forecasts.saving" :disabled="!form.channel_id || !form.event_at" @click="submit" />

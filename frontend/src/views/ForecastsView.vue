@@ -1,27 +1,23 @@
 <script setup>
 import { computed, onMounted, reactive } from "vue";
-import { useToast } from "primevue/usetoast";
+import { useRouter } from "vue-router";
 import Button from "primevue/button";
-import Checkbox from "primevue/checkbox";
 import Column from "primevue/column";
 import DataTable from "primevue/datatable";
 import DatePicker from "primevue/datepicker";
-import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
+import ReportButtons from "../components/ReportButtons.vue";
 import { useAuthStore } from "../stores/auth";
 import { useForecastsStore } from "../stores/forecasts";
 
 const auth = useAuthStore();
 const forecasts = useForecastsStore();
-const toast = useToast();
-const form = reactive({ channel_id: null, event_at: new Date(), sensor_value: "", is_alarm: false });
-const canCreate = computed(() => auth.hasPermission("forecast.create"));
-const channelOptions = computed(() => forecasts.channels.map((item) => ({
-  ...item,
-  label: `${item.object_name} · ${item.sensor_name || `Канал ${item.id}`}${item.model_key ? "" : " · без модели"}`,
-})));
+const router = useRouter();
+const filters = reactive({ dateFrom: null, dateTo: null, riskOrder: "desc" });
+const riskOptions = [{ label: "Сначала высокий риск", value: "desc" }, { label: "Сначала низкий риск", value: "asc" }];
+const reportParams = computed(() => ({ date_from: localIso(filters.dateFrom), date_to: localIso(filters.dateTo), risk_order: filters.riskOrder }));
 
 const statusLabels = {
   insufficient_history: "Недостаточно истории",
@@ -46,38 +42,22 @@ function severity(item) {
   return item.warning ? "danger" : "success";
 }
 
-async function submit() {
-  if (!form.channel_id || !form.event_at) return;
-  try {
-    const result = await forecasts.create({
-      channel_id: form.channel_id,
-      event_at: localIso(form.event_at),
-      sensor_value: form.sensor_value || null,
-      is_alarm: form.is_alarm,
-    });
-    form.sensor_value = "";
-    form.is_alarm = false;
-    form.event_at = new Date();
-    toast.add({
-      severity: result.status === "unsupported_channel" ? "info" : result.warning ? "warn" : "success",
-      summary: result.status === "unsupported_channel" ? "Показание сохранено" : "Прогноз рассчитан",
-      detail: conclusion(result),
-      life: 5000,
-    });
-  } catch (error) {
-    toast.add({ severity: "error", summary: "Не удалось построить прогноз", detail: error.message, life: 5000 });
-  }
+function load() {
+  return forecasts.load({ date_from: localIso(filters.dateFrom), date_to: localIso(filters.dateTo), risk_order: filters.riskOrder });
+}
+function reset() {
+  Object.assign(filters, { dateFrom: null, dateTo: null, riskOrder: "desc" });
+  load();
+}
+function makeAssignment(item) {
+  router.push({ name: "assignments", query: { object_id: item.object_id, channel_id: item.channel_id } });
 }
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString("ru-RU") : "—";
 }
 
-onMounted(async () => {
-  const requests = [forecasts.load()];
-  if (canCreate.value) requests.push(forecasts.loadChannels());
-  await Promise.allSettled(requests);
-});
+onMounted(load);
 </script>
 
 <template>
@@ -88,23 +68,16 @@ onMounted(async () => {
         <h1>Журнал прогнозов</h1>
         <p>Вероятность состояния «Неисправен» в период от 1 до 31 дня после показания.</p>
       </div>
-      <span class="result-count">{{ forecasts.items.length }} прогнозов</span>
+      <div class="page-title-actions"><ReportButtons dataset="forecasts" :params="reportParams" /><span class="result-count">{{ forecasts.items.length }} прогнозов</span></div>
     </div>
 
     <Message v-if="forecasts.error" severity="error">{{ forecasts.error }}</Message>
 
-    <div v-if="canCreate" class="section-card forecast-form">
-      <div class="section-heading-inline">
-        <div><span class="eyebrow">НОВОЕ ПОКАЗАНИЕ</span><h2>Сохранить и построить прогноз</h2></div>
-        <span class="muted-text">Модель выбирается автоматически по датчику</span>
-      </div>
-      <div class="forecast-fields">
-        <label>Датчик<Select v-model="form.channel_id" :options="channelOptions" option-label="label" option-value="id" filter placeholder="Выберите датчик" /></label>
-        <label>Дата и время<DatePicker v-model="form.event_at" show-time hour-format="24" show-icon /></label>
-        <label>Значение<InputText v-model="form.sensor_value" placeholder="Например: Исправен" /></label>
-        <label class="forecast-alarm"><Checkbox v-model="form.is_alarm" binary />Тревожное показание</label>
-        <Button label="Сохранить и рассчитать" icon="pi pi-chart-line" :loading="forecasts.saving" :disabled="!form.channel_id || !form.event_at" @click="submit" />
-      </div>
+    <div class="section-card filter-grid" aria-label="Фильтры прогнозов">
+      <label>С даты<DatePicker v-model="filters.dateFrom" show-time hour-format="24" /></label>
+      <label>По дату<DatePicker v-model="filters.dateTo" show-time hour-format="24" /></label>
+      <label>Сортировка по риску<Select v-model="filters.riskOrder" :options="riskOptions" option-label="label" option-value="value" /></label>
+      <div class="filter-actions"><Button label="Применить" icon="pi pi-filter" @click="load" /><Button label="Сбросить" severity="secondary" text @click="reset" /></div>
     </div>
 
     <div class="section-card table-card">
@@ -116,6 +89,7 @@ onMounted(async () => {
         <Column header="Период прогноза"><template #body="{ data }"><template v-if="data.status === 'ok'">{{ formatDate(data.target_from) }}<span class="table-subtitle">до {{ formatDate(data.target_until) }}</span></template><span v-else>—</span></template></Column>
         <Column header="Риск"><template #body="{ data }">{{ data.risk_score == null ? "—" : `${(data.risk_score * 100).toFixed(1)}%` }}</template></Column>
         <Column header="Результат"><template #body="{ data }"><Tag :value="conclusion(data)" :severity="severity(data)" /></template></Column>
+        <Column v-if="auth.roleCodes.includes('dispatcher')" header="Действия"><template #body="{ data }"><Button v-if="data.warning" label="Сделать направление" icon="pi pi-send" size="small" @click="makeAssignment(data)" /><span v-else>—</span></template></Column>
         <template #empty>Прогнозов пока нет.</template>
       </DataTable>
     </div>

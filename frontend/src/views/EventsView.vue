@@ -7,6 +7,7 @@ import DatePicker from "primevue/datepicker";
 import Message from "primevue/message";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
+import ReportButtons from "../components/ReportButtons.vue";
 import { useMonitoringStore } from "../stores/monitoring";
 
 const monitoring = useMonitoringStore();
@@ -19,6 +20,10 @@ const sensorOptions = computed(() =>
     .sort()
     .map((value) => ({ label: value, value })),
 );
+const reportParams = computed(() => ({
+  date_from: iso(filters.dateFrom), date_to: iso(filters.dateTo),
+  object_id: filters.objectId, sensor_type: filters.sensorType,
+}));
 
 function iso(value) {
   if (!(value instanceof Date)) return null;
@@ -57,7 +62,7 @@ onMounted(async () => {
         <h1>Текущие показания</h1>
         <p>События каналов с фильтрацией по периоду, объекту и типу датчика.</p>
       </div>
-      <span class="result-count">{{ monitoring.eventTotal }} событий</span>
+      <div class="page-title-actions"><ReportButtons dataset="events" :params="reportParams" /><span class="result-count">{{ monitoring.eventTotal }} событий</span></div>
     </div>
     <div class="section-card filter-grid" aria-label="Фильтры показаний">
       <label>С даты<DatePicker v-model="filters.dateFrom" show-time hour-format="24" /></label>

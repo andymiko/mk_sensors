@@ -50,11 +50,10 @@ const routes = [
         meta: { permission: "forecast.view", title: "Журнал прогнозов" },
       },
       {
-        path: "notifications",
-        name: "notifications",
-        component: () => import("../views/PlaceholderView.vue"),
-        props: { title: "Уведомления", eyebrow: "СОБЫТИЯ", icon: "pi-bell" },
-        meta: { permission: "notification.view", title: "Уведомления" },
+        path: "forecast-test",
+        name: "forecast-test",
+        component: () => import("../views/ForecastTestView.vue"),
+        meta: { roles: ["admin", "manager"], title: "Тестирование прогноза" },
       },
       {
         path: "assignments",

@@ -23,8 +23,7 @@ const items = computed(() =>
     { label: "Назначения", icon: "pi-clipboard", name: "assignments", permission: "assignment.view" },
     { label: "Подразделения", icon: "pi-sitemap", name: "divisions", permission: "access.manage" },
     { label: "Журнал прогнозов", icon: "pi-chart-line", name: "forecasts", permission: "forecast.view" },
-    { label: "Уведомления", icon: "pi-bell", name: "notifications", permission: "notification.view" },
-
+    { label: "Тестирование прогноза", icon: "pi-sparkles", name: "forecast-test", roles: ["admin", "manager"] },
     {
       label: "Администрирование",
       icon: "pi-shield",

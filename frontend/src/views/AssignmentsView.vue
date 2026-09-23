@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import Button from "primevue/button";
 import Column from "primevue/column";
@@ -8,6 +9,7 @@ import DatePicker from "primevue/datepicker";
 import Message from "primevue/message";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
+import ReportButtons from "../components/ReportButtons.vue";
 import { useAssignmentsStore } from "../stores/assignments";
 import { useAuthStore } from "../stores/auth";
 import { useMonitoringStore } from "../stores/monitoring";
@@ -16,6 +18,7 @@ const assignments = useAssignmentsStore();
 const auth = useAuthStore();
 const monitoring = useMonitoringStore();
 const toast = useToast();
+const route = useRoute();
 const form = reactive({ object_id: null, channel_id: null, technician_id: null, scheduled_date: null });
 const expandedAssignments = ref(new Set());
 
@@ -100,6 +103,11 @@ onMounted(async () => {
   const requests = [assignments.load()];
   if (canCreate.value) requests.push(monitoring.loadObjects());
   await Promise.allSettled(requests);
+  if (canCreate.value && route.query.object_id) {
+    form.object_id = Number(route.query.object_id);
+    await changeObject();
+    if (route.query.channel_id) form.channel_id = Number(route.query.channel_id);
+  }
 });
 </script>
 
@@ -111,7 +119,7 @@ onMounted(async () => {
         <h1>Назначения</h1>
         <p>Проверки объектов и датчиков, назначенные техническим специалистам.</p>
       </div>
-      <span class="result-count">{{ assignments.items.length }} заданий</span>
+      <div class="page-title-actions"><ReportButtons dataset="assignments" /><span class="result-count">{{ assignments.items.length }} заданий</span></div>
     </div>
 
     <Message v-if="pendingMine" severity="info" :closable="false">

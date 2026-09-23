@@ -4,7 +4,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from anyio import to_thread
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,12 +64,24 @@ def _forecast_rows():
 
 
 @router.get("", response_model=list[ForecastRead])
-async def list_forecasts(db: Db, user: ForecastViewer):
+async def list_forecasts(
+    db: Db,
+    user: ForecastViewer,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    risk_order: str = Query("desc", pattern="^(asc|desc)$"),
+):
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, "Начальная дата не может быть позже конечной")
     object_ids = accessible_objects(user.id, "forecast.view").with_only_columns(Object.id)
+    query = _forecast_rows().where(Forecast.object_id.in_(object_ids))
+    if date_from is not None:
+        query = query.where(Forecast.forecast_at >= _moscow_naive(date_from))
+    if date_to is not None:
+        query = query.where(Forecast.forecast_at <= _moscow_naive(date_to))
+    risk_sort = Forecast.risk_score.asc().nullslast() if risk_order == "asc" else Forecast.risk_score.desc().nullslast()
     return (await db.execute(
-        _forecast_rows()
-        .where(Forecast.object_id.in_(object_ids))
-        .order_by(Forecast.created_at.desc(), Forecast.id.desc())
+        query.order_by(risk_sort, Forecast.created_at.desc(), Forecast.id.desc())
     )).mappings().all()
 
 

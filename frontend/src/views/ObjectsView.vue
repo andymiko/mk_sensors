@@ -9,6 +9,7 @@ import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
+import ReportButtons from "../components/ReportButtons.vue";
 import { apiRequest } from "../services/api";
 import { useAuthStore } from "../stores/auth";
 import { useMonitoringStore } from "../stores/monitoring";
@@ -26,6 +27,7 @@ const sorting = reactive({ sortBy: "id", sortOrder: "asc" });
 const districtOptions = computed(() =>
   districts.value.map((item) => ({ label: item.name, value: item.id })),
 );
+const reportParams = computed(() => ({ search: filters.search, district_id: filters.districtId }));
 
 async function showDetails(object) {
   details.value = await monitoring.loadObjectDetails(object.id);
@@ -97,7 +99,7 @@ onMounted(async () => {
         <h1>Объекты контроля</h1>
         <p>Доступные объекты и их территориальная принадлежность.</p>
       </div>
-      <span class="result-count">{{ monitoring.objectTotal }} объектов</span>
+      <div class="page-title-actions"><ReportButtons dataset="objects" :params="reportParams" /><span class="result-count">{{ monitoring.objectTotal }} объектов</span></div>
     </div>
     <Message v-if="monitoring.error" severity="error">{{ monitoring.error }}</Message>
     <div class="section-card object-filter-bar" aria-label="Фильтры объектов">

@@ -387,6 +387,13 @@ input {
   justify-content: flex-end;
   gap: 0.75rem;
 }
+.page-title-actions,
+.report-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 .assignment-sensor-list {
   display: grid;
   gap: 0.6rem;

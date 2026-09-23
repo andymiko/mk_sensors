@@ -9,11 +9,15 @@ export const useForecastsStore = defineStore("forecasts", () => {
   const saving = ref(false);
   const error = ref("");
 
-  async function load() {
+  async function load(filters = {}) {
     loading.value = true;
     error.value = "";
     try {
-      items.value = await apiRequest("/forecasts");
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(filters)) {
+        if (value !== null && value !== undefined && value !== "") query.set(key, value);
+      }
+      items.value = await apiRequest(`/forecasts?${query}`);
     } catch (requestError) {
       error.value = requestError.message;
       throw requestError;

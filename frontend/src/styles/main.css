@@ -387,6 +387,41 @@ input {
   justify-content: flex-end;
   gap: 0.75rem;
 }
+.assignment-sensor-list {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 12rem;
+}
+.assignment-sensor-list > div + div {
+  padding-top: 0.6rem;
+  border-top: 1px solid #d9e2ec;
+}
+.assignment-sensor-list strong {
+  display: block;
+}
+.assignment-object-sensors {
+  min-width: 12rem;
+}
+.assignment-expand-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border: 0;
+  color: #126e82;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.assignment-expand-button:focus-visible {
+  outline: 2px solid #14919b;
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+.assignment-object-sensors .assignment-sensor-list {
+  margin-top: 0.65rem;
+}
 .profile-card {
   display: flex;
   align-items: center;

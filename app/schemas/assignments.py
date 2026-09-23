@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AssignmentCreate(BaseModel):
@@ -11,6 +11,12 @@ class AssignmentCreate(BaseModel):
     scheduled_date: date
 
 
+class AssignmentSensor(BaseModel):
+    id: int
+    name: str | None
+    type: str | None
+
+
 class AssignmentRead(BaseModel):
     id: str
     object_id: int
@@ -18,6 +24,7 @@ class AssignmentRead(BaseModel):
     channel_id: int | None
     sensor_name: str | None
     sensor_type: str | None
+    sensors: list[AssignmentSensor] = Field(default_factory=list)
     technician_id: str
     technician_name: str
     dispatcher_id: str

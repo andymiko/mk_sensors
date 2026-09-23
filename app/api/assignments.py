@@ -51,9 +51,42 @@ def _assignment_rows():
 
 
 async def _read_assignment(db: AsyncSession, assignment_id: str):
-    return (await db.execute(
+    row = (await db.execute(
         _assignment_rows().where(Assignment.id == assignment_id)
     )).mappings().one()
+    return (await _with_sensors(db, [row]))[0]
+
+
+async def _with_sensors(db: AsyncSession, rows) -> list[dict]:
+    items = [dict(row) for row in rows]
+    whole_object_ids = {
+        item["object_id"] for item in items if item["channel_id"] is None
+    }
+    sensors_by_object: dict[int, list[dict]] = {
+        object_id: [] for object_id in whole_object_ids
+    }
+    if whole_object_ids:
+        channels = await db.execute(
+            select(Channel.object_id, Channel.id, Channel.sensor_name, Channel.sensor_type)
+            .where(Channel.object_id.in_(whole_object_ids))
+            .order_by(Channel.object_id, Channel.sensor_name, Channel.id)
+        )
+        for object_id, channel_id, sensor_name, sensor_type in channels:
+            sensors_by_object[object_id].append({
+                "id": channel_id,
+                "name": sensor_name,
+                "type": sensor_type,
+            })
+    for item in items:
+        if item["channel_id"] is None:
+            item["sensors"] = sensors_by_object[item["object_id"]]
+        else:
+            item["sensors"] = [{
+                "id": item["channel_id"],
+                "name": item["sensor_name"],
+                "type": item["sensor_type"],
+            }]
+    return items
 
 
 @router.get("", response_model=list[AssignmentRead])
@@ -66,9 +99,10 @@ async def list_assignments(db: Db, user: AssignmentViewer):
         and not user.has_permission("assignment.create")
     ):
         query = query.where(Assignment.technician_id == user.id)
-    return (await db.execute(
+    rows = (await db.execute(
         query.order_by(Assignment.scheduled_date.desc(), Assignment.created_at.desc())
     )).mappings().all()
+    return await _with_sensors(db, rows)
 
 
 @router.get("/technicians", response_model=list[TechnicianOption])

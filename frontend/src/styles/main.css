@@ -85,6 +85,16 @@ input {
   color: #fff;
   background: #14919b;
 }
+.brand-mark svg {
+  width: 34px;
+  height: 34px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .side-nav {
   display: grid;
   gap: 0.35rem;

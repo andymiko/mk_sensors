@@ -58,7 +58,7 @@ const submit = async () => {
             v-model="form.email"
             type="email"
             autocomplete="email"
-            placeholder="IvanovII@mos.ru"
+            placeholder="user@example.ru"
             required
             fluid
           />

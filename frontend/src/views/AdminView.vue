@@ -11,7 +11,6 @@ import TabList from "primevue/tablist";
 import TabPanel from "primevue/tabpanel";
 import TabPanels from "primevue/tabpanels";
 import Tabs from "primevue/tabs";
-import Tag from "primevue/tag";
 import ToggleSwitch from "primevue/toggleswitch";
 import { useAdminStore } from "../stores/admin";
 
@@ -48,14 +47,24 @@ onMounted(() => admin.loadAll());
             :loading="admin.loading"
             class="admin-table admin-users-table"
             scrollable
-            table-style="min-width: 72rem"
+            table-style="min-width: 50rem"
             responsive-layout="scroll"
             >
-            <Column field="name" header="ФИО" style="min-width: 11rem" />
-            <Column
-              field="email"
-              header="Email"
-              style="min-width: 14rem" />
+            <Column header="ФИО" style="min-width: 15rem">
+              <template #body="{ data }">
+                <div class="admin-user-identity">
+                  <strong>{{ data.name }}</strong>
+                  <span>{{ data.email }}</span>
+                  <span>
+                    {{
+                      data.roles.length
+                        ? data.roles.map((role) => role.name).join(", ")
+                        : "Роль не назначена"
+                    }}
+                  </span>
+                </div>
+              </template>
+            </Column>
             <Column
               header="Подразделения"
               style="min-width: 16rem"
@@ -72,14 +81,6 @@ onMounted(() => admin.loadAll());
                   class="admin-multiselect"
                   @update:model-value="admin.setUserDivisions(data, $event)"
                 /></template></Column
-            ><Column header="Роли" style="min-width: 12rem"
-              ><template #body="{ data }"
-                ><div class="tag-wrap">
-                  <Tag
-                    v-for="role in data.roles"
-                    :key="role.id"
-                    :value="role.name"
-                  /></div></template></Column
             ><Column header="Активен" style="min-width: 7rem"
               ><template #body="{ data }"
                 ><ToggleSwitch
@@ -90,8 +91,6 @@ onMounted(() => admin.loadAll());
             ><Column
               header="Назначить роли"
               style="min-width: 16rem"
-              frozen
-              align-frozen="right"
               ><template #body="{ data }"
                 ><MultiSelect
                   :model-value="data.roles.map((role) => role.id)"

@@ -15,6 +15,8 @@ class AssignmentSensor(BaseModel):
     id: int
     name: str | None
     type: str | None
+    status: str
+    completed_at: datetime | None
 
 
 class AssignmentRead(BaseModel):

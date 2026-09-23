@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 
 from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
-from app.dbapi.models import Assignment, Channel, Object, Role, User
+from app.dbapi.models import Assignment, AssignmentItem, Channel, Object, Role, User
 from app.dbapi.models.access import division_objects, user_divisions
 from app.dbapi.models.associations import user_roles
 from app.rbac import accessible_objects
@@ -59,33 +59,33 @@ async def _read_assignment(db: AsyncSession, assignment_id: str):
 
 async def _with_sensors(db: AsyncSession, rows) -> list[dict]:
     items = [dict(row) for row in rows]
-    whole_object_ids = {
-        item["object_id"] for item in items if item["channel_id"] is None
+    sensors_by_assignment: dict[str, list[dict]] = {
+        item["id"]: [] for item in items
     }
-    sensors_by_object: dict[int, list[dict]] = {
-        object_id: [] for object_id in whole_object_ids
-    }
-    if whole_object_ids:
+    if items:
         channels = await db.execute(
-            select(Channel.object_id, Channel.id, Channel.sensor_name, Channel.sensor_type)
-            .where(Channel.object_id.in_(whole_object_ids))
-            .order_by(Channel.object_id, Channel.sensor_name, Channel.id)
+            select(
+                AssignmentItem.assignment_id,
+                Channel.id,
+                Channel.sensor_name,
+                Channel.sensor_type,
+                AssignmentItem.status,
+                AssignmentItem.completed_at,
+            )
+            .join(Channel, Channel.id == AssignmentItem.channel_id)
+            .where(AssignmentItem.assignment_id.in_(sensors_by_assignment))
+            .order_by(AssignmentItem.assignment_id, Channel.sensor_name, Channel.id)
         )
-        for object_id, channel_id, sensor_name, sensor_type in channels:
-            sensors_by_object[object_id].append({
+        for assignment_id, channel_id, sensor_name, sensor_type, item_status, completed_at in channels:
+            sensors_by_assignment[assignment_id].append({
                 "id": channel_id,
                 "name": sensor_name,
                 "type": sensor_type,
+                "status": item_status,
+                "completed_at": completed_at,
             })
     for item in items:
-        if item["channel_id"] is None:
-            item["sensors"] = sensors_by_object[item["object_id"]]
-        else:
-            item["sensors"] = [{
-                "id": item["channel_id"],
-                "name": item["sensor_name"],
-                "type": item["sensor_type"],
-            }]
+        item["sensors"] = sensors_by_assignment[item["id"]]
     return items
 
 
@@ -144,6 +144,15 @@ async def create_assignment(payload: AssignmentCreate, db: Db, user: AssignmentC
         ))
         if channel is None:
             raise HTTPException(422, "Датчик не относится к выбранному объекту")
+        channel_ids = [channel.id]
+    else:
+        channel_ids = list(await db.scalars(
+            select(Channel.id)
+            .where(Channel.object_id == payload.object_id)
+            .order_by(Channel.id)
+        ))
+        if not channel_ids:
+            raise HTTPException(422, "На выбранном объекте нет датчиков")
     eligible = await db.scalar(
         select(User.id)
         .join(user_roles, user_roles.c.user_id == User.id)
@@ -168,6 +177,11 @@ async def create_assignment(payload: AssignmentCreate, db: Db, user: AssignmentC
     assignment = Assignment(**payload.model_dump(), dispatcher_id=user.id)
     db.add(assignment)
     try:
+        await db.flush()
+        db.add_all([
+            AssignmentItem(assignment_id=assignment.id, channel_id=channel_id)
+            for channel_id in channel_ids
+        ])
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -185,7 +199,48 @@ async def complete_assignment(assignment_id: str, db: Db, user: AssignmentComple
     if not user.is_admin() and assignment.technician_id != user.id:
         raise HTTPException(403, "Завершить задание может только назначенный техник")
     if assignment.status != "completed":
+        completed_at = datetime.now(timezone.utc)
+        items = list(await db.scalars(
+            select(AssignmentItem)
+            .where(AssignmentItem.assignment_id == assignment_id)
+            .with_for_update()
+        ))
+        for item in items:
+            item.status = "completed"
+            item.completed_at = completed_at
         assignment.status = "completed"
-        assignment.completed_at = datetime.now(timezone.utc)
+        assignment.completed_at = completed_at
         await db.commit()
+    return await _read_assignment(db, assignment.id)
+
+
+@router.patch("/{assignment_id}/items/{channel_id}/complete", response_model=AssignmentRead)
+async def complete_assignment_item(
+    assignment_id: str,
+    channel_id: int,
+    db: Db,
+    user: AssignmentCompleter,
+):
+    assignment = await db.scalar(
+        select(Assignment).where(Assignment.id == assignment_id).with_for_update()
+    )
+    if assignment is None:
+        raise HTTPException(404, "Задание не найдено")
+    if not user.is_admin() and assignment.technician_id != user.id:
+        raise HTTPException(403, "Завершить проверку может только назначенный техник")
+    items = list(await db.scalars(
+        select(AssignmentItem)
+        .where(AssignmentItem.assignment_id == assignment_id)
+        .with_for_update()
+    ))
+    item = next((row for row in items if row.channel_id == channel_id), None)
+    if item is None:
+        raise HTTPException(404, "Датчик не входит в задание")
+    if item.status != "completed":
+        item.status = "completed"
+        item.completed_at = datetime.now(timezone.utc)
+    if items and all(row.status == "completed" for row in items):
+        assignment.status = "completed"
+        assignment.completed_at = max(row.completed_at for row in items)
+    await db.commit()
     return await _read_assignment(db, assignment.id)

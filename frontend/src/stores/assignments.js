@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { defineStore } from "pinia";
+import { acceptHMRUpdate, defineStore } from "pinia";
 import { apiRequest } from "../services/api";
 
 export const useAssignmentsStore = defineStore("assignments", () => {
@@ -75,5 +75,27 @@ export const useAssignmentsStore = defineStore("assignments", () => {
     }
   }
 
-  return { items, technicians, channels, loading, saving, error, load, loadOptions, clearOptions, create, complete };
+  async function completeItem(assignmentId, channelId) {
+    saving.value = true;
+    error.value = "";
+    try {
+      const updated = await apiRequest(
+        `/assignments/${assignmentId}/items/${channelId}/complete`,
+        { method: "PATCH" },
+      );
+      items.value = items.value.map((item) => item.id === assignmentId ? updated : item);
+      return updated;
+    } catch (requestError) {
+      error.value = requestError.message;
+      throw requestError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  return { items, technicians, channels, loading, saving, error, load, loadOptions, clearOptions, create, complete, completeItem };
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useAssignmentsStore, import.meta.hot));
+}

@@ -399,6 +399,15 @@ input {
 .assignment-sensor-list strong {
   display: block;
 }
+.assignment-sensor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.assignment-sensor-item > div {
+  min-width: 0;
+}
 .assignment-object-sensors {
   min-width: 12rem;
 }

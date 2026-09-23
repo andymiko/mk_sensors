@@ -6,7 +6,7 @@ from app.dbapi.models.users import User
 from app.dbapi.models.channels import Channel, Channels
 from app.dbapi.models.events import Event, Events
 from app.dbapi.models.objects import Object, Objects
-from app.dbapi.models.assignments import Assignment
+from app.dbapi.models.assignments import Assignment, AssignmentItem
 from app.dbapi.models.forecasts import Forecast
 from app.dbapi.models.access import (
     District, Districts, Division, Divisions, district_divisions, division_objects,
@@ -27,6 +27,7 @@ __all__ = [
     "Object",
     "Objects",
     "Assignment",
+    "AssignmentItem",
     "Forecast",
     "District",
     "Districts",

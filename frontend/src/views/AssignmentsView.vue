@@ -20,7 +20,6 @@ const form = reactive({ object_id: null, channel_id: null, technician_id: null, 
 const expandedAssignments = ref(new Set());
 
 const canCreate = computed(() => auth.hasPermission("assignment.create"));
-const canComplete = computed(() => auth.hasPermission("assignment.complete"));
 const pendingMine = computed(() => assignments.items.filter(
   (item) => item.status === "pending" && item.technician_id === auth.user?.id,
 ).length);
@@ -72,13 +71,18 @@ async function submit() {
   }
 }
 
-async function complete(item) {
+async function completeSensor(assignment, sensor) {
   try {
-    await assignments.complete(item.id);
-    toast.add({ severity: "success", summary: "Задание выполнено", life: 3000 });
+    await assignments.completeItem(assignment.id, sensor.id);
+    toast.add({ severity: "success", summary: "Датчик проверен", life: 3000 });
   } catch (error) {
-    toast.add({ severity: "error", summary: "Не удалось завершить", detail: error.message, life: 5000 });
+    toast.add({ severity: "error", summary: "Не удалось завершить проверку", detail: error.message, life: 5000 });
   }
+}
+
+function canCompleteSensor(assignment, sensor) {
+  return sensor.status === "pending" &&
+    (assignment.technician_id === auth.user?.id || auth.isAdmin);
 }
 
 function formatDate(value) {
@@ -133,11 +137,10 @@ onMounted(async () => {
       <DataTable :value="assignments.items" :loading="assignments.loading" paginator :rows="20" :rows-per-page-options="[10, 20, 50]" striped-rows responsive-layout="scroll">
         <Column field="scheduled_date" header="Дата" sortable><template #body="{ data }">{{ formatDate(data.scheduled_date) }}</template></Column>
         <Column field="object_name" header="Объект" sortable><template #body="{ data }"><strong>{{ data.object_name }}</strong><span class="table-subtitle">ID {{ data.object_id }}</span></template></Column>
-        <Column header="Что проверить"><template #body="{ data }"><template v-if="data.channel_id"><div class="assignment-sensor-list"><div v-for="sensor in data.sensors" :key="sensor.id"><strong>{{ sensor.name || `Канал ${sensor.id}` }}</strong><span class="table-subtitle">Тип: {{ sensor.type || "Не указан" }}</span></div></div></template><div v-else class="assignment-object-sensors"><button type="button" class="assignment-expand-button" :aria-expanded="expandedAssignments.has(data.id)" @click="toggleSensors(data.id)"><span>Весь объект</span><i class="pi" :class="expandedAssignments.has(data.id) ? 'pi-chevron-up' : 'pi-chevron-down'" /></button><div v-if="expandedAssignments.has(data.id)" class="assignment-sensor-list"><div v-for="sensor in data.sensors" :key="sensor.id"><strong>{{ sensor.name || `Канал ${sensor.id}` }}</strong><span class="table-subtitle">Тип: {{ sensor.type || "Не указан" }}</span></div><span v-if="!data.sensors?.length" class="muted-text">На объекте нет датчиков</span></div></div></template></Column>
+        <Column header="Что проверить"><template #body="{ data }"><div class="assignment-object-sensors"><button v-if="!data.channel_id" type="button" class="assignment-expand-button" :aria-expanded="expandedAssignments.has(data.id)" @click="toggleSensors(data.id)"><span>Весь объект</span><i class="pi" :class="expandedAssignments.has(data.id) ? 'pi-chevron-up' : 'pi-chevron-down'" /></button><div v-if="data.channel_id || expandedAssignments.has(data.id)" class="assignment-sensor-list"><div v-for="sensor in data.sensors" :key="sensor.id" class="assignment-sensor-item"><div><strong>{{ sensor.name || `Канал ${sensor.id}` }}</strong><span class="table-subtitle">Тип: {{ sensor.type || "Не указан" }}</span></div><Tag v-if="sensor.status === 'completed'" value="Проверен" severity="success" /><Button v-else-if="canCompleteSensor(data, sensor)" label="Проверено" icon="pi pi-check" size="small" severity="success" :loading="assignments.saving" @click="completeSensor(data, sensor)" /><Tag v-else value="Ожидает проверки" severity="warn" /></div><span v-if="!data.sensors?.length" class="muted-text">На объекте нет датчиков</span></div></div></template></Column>
         <Column field="technician_name" header="Техник" sortable />
         <Column field="dispatcher_name" header="Диспетчер" />
         <Column field="status" header="Статус" sortable><template #body="{ data }"><Tag :value="data.status === 'completed' ? 'Выполнено' : 'Назначено'" :severity="data.status === 'completed' ? 'success' : 'warn'" /></template></Column>
-        <Column v-if="canComplete || auth.isAdmin" header="Действия" frozen align-frozen="right"><template #body="{ data }"><Button v-if="data.status === 'pending' && (data.technician_id === auth.user?.id || auth.isAdmin)" label="Задание выполнено" icon="pi pi-check" size="small" severity="success" :loading="assignments.saving" @click="complete(data)" /><span v-else>—</span></template></Column>
         <template #empty>Заданий пока нет.</template>
       </DataTable>
     </div>

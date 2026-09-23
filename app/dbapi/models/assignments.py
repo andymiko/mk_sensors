@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.dbapi.base import Base
@@ -22,4 +22,21 @@ class Assignment(Base):
     dispatcher_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     scheduled_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AssignmentItem(Base):
+    __tablename__ = "assignment_items"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'completed')", name="ck_assignment_items_status"),
+        ForeignKeyConstraint(["assignment_id"], ["assignments.id"], ondelete="CASCADE"),
+    )
+
+    assignment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    channel_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("channels.id", ondelete="RESTRICT"), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

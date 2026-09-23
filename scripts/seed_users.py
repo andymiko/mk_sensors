@@ -21,24 +21,24 @@ from scripts.seed_territories import DIVISIONS
 
 
 DISPATCHERS = {
-    "dispatch-north": ("dispatcher.north", "Диспетчер Север"),
-    "dispatch-south": ("dispatcher.south", "Диспетчер Юг"),
-    "dispatch-west": ("dispatcher.west", "Диспетчер Запад"),
-    "dispatch-east": ("dispatcher.east", "Диспетчер Восток"),
+    "dispatch-north": ("disp.north", "Диспетчер Север"),
+    "dispatch-south": ("disp.south", "Диспетчер Юг"),
+    "dispatch-west": ("disp.west", "Диспетчер Запад"),
+    "dispatch-east": ("disp.east", "Диспетчер Восток"),
 }
 
 OPERATIONS = {
-    "operations-arbat": ("arbat", "Арбат"),
-    "operations-khamovniki": ("khamovniki", "Хамовники"),
-    "operations-presnenskiy": ("presnenskiy", "Пресненский"),
-    "operations-tverskoy": ("tverskoy", "Тверской"),
+    "operations-arbat": ("arb", "Арбат"),
+    "operations-khamovniki": ("kham", "Хам"),
+    "operations-presnenskiy": ("pres", "Прес"),
+    "operations-tverskoy": ("tver", "Твер"),
     "operations-meshchanskiy-krasnoselskiy": (
-        "meshchanskiy-krasnoselskiy", "Мещанский/Красносельский",
+        "meshkras", "МещаКрас",
     ),
-    "operations-basmanniy": ("basmanniy", "Басманный"),
-    "operations-taganskiy": ("taganskiy", "Таганский"),
+    "operations-basmanniy": ("bas", "Басм"),
+    "operations-taganskiy": ("tag", "Таг"),
     "operations-zamoskvorechye-yakimanka": (
-        "zamoskvorechye-yakimanka", "Замоскворечье/Якиманка",
+        "zamyak", "ЗамЯк",
     ),
 }
 
@@ -65,8 +65,8 @@ def build_user_catalog() -> tuple[SeedUser, ...]:
     ]
     users.extend(
         SeedUser(
-            f"technician.{email_part}.{number}",
-            f"Техник {division_name} {number}",
+            f"tech.{email_part}.{number}",
+            f"Тех{division_name} {number}",
             "technician",
             (division_code,),
         )
@@ -74,7 +74,7 @@ def build_user_catalog() -> tuple[SeedUser, ...]:
         for number in range(1, 4)
     )
     users.extend([
-        SeedUser("administrator", "Администратор системы", "admin", tuple(DIVISIONS)),
+        SeedUser("admin", "Администратор системы", "admin", tuple(DIVISIONS)),
         SeedUser("manager", "Руководитель", "manager", tuple(DIVISIONS)),
     ])
     return tuple(users)
@@ -135,12 +135,23 @@ async def seed_users(
     updated = 0
     for definition in USERS:
         email = _email(definition.email_local, domain)
-        user = await db.scalar(
+        stable_id = _stable_id(email)
+        user_by_id = await db.get(User, stable_id)
+        user_by_email = await db.scalar(
             select(User).where(func.lower(User.email) == email.lower())
         )
+        if (
+            user_by_id is not None
+            and user_by_email is not None
+            and user_by_id.id != user_by_email.id
+        ):
+            raise ValueError(
+                f"Нельзя восстановить {email}: этот email уже принадлежит другому пользователю"
+            )
+        user = user_by_id or user_by_email
         if user is None:
             user = User(
-                id=_stable_id(email),
+                id=stable_id,
                 email=email,
                 name=definition.name,
                 is_active=True,

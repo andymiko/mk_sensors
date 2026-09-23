@@ -44,3 +44,4 @@ tests/
 storage/
 */ml_models/*_metadata.json
 scripts/
+app/ml_models/*.joblib.bak

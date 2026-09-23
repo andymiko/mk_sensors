@@ -46,13 +46,19 @@ onMounted(() => admin.loadAll());
           ><DataTable
             :value="admin.users"
             :loading="admin.loading"
-            class="admin-table"
+            class="admin-table admin-users-table"
             scrollable
-            table-style="min-width: 60rem"
+            table-style="min-width: 72rem"
             responsive-layout="scroll"
-            ><Column field="name" header="ФИО" /><Column
+            >
+            <Column field="name" header="ФИО" style="min-width: 11rem" />
+            <Column
               field="email"
-              header="Email" /><Column header="Подразделения"
+              header="Email"
+              style="min-width: 14rem" />
+            <Column
+              header="Подразделения"
+              style="min-width: 16rem"
               ><template #body="{ data }"
                 ><MultiSelect
                   :model-value="data.division_ids"
@@ -60,13 +66,13 @@ onMounted(() => admin.loadAll());
                   option-label="name"
                   option-value="id"
                   display="chip"
-                  :max-selected-labels="2"
+                  :max-selected-labels="1"
                   selected-items-label="{0} подразделений"
                   placeholder="Не назначено"
                   class="admin-multiselect"
                   @update:model-value="admin.setUserDivisions(data, $event)"
                 /></template></Column
-            ><Column header="Роли"
+            ><Column header="Роли" style="min-width: 12rem"
               ><template #body="{ data }"
                 ><div class="tag-wrap">
                   <Tag
@@ -74,14 +80,18 @@ onMounted(() => admin.loadAll());
                     :key="role.id"
                     :value="role.name"
                   /></div></template></Column
-            ><Column header="Активен"
+            ><Column header="Активен" style="min-width: 7rem"
               ><template #body="{ data }"
                 ><ToggleSwitch
                   :model-value="data.is_active"
                   @update:model-value="
                     admin.setUserStatus(data, $event)
                   " /></template></Column
-            ><Column header="Назначить роли"
+            ><Column
+              header="Назначить роли"
+              style="min-width: 16rem"
+              frozen
+              align-frozen="right"
               ><template #body="{ data }"
                 ><MultiSelect
                   :model-value="data.roles.map((role) => role.id)"
@@ -89,7 +99,7 @@ onMounted(() => admin.loadAll());
                   option-label="name"
                   option-value="id"
                   display="chip"
-                  :max-selected-labels="2"
+                  :max-selected-labels="1"
                   selected-items-label="{0} ролей выбрано"
                   class="admin-multiselect"
                   @update:model-value="

@@ -316,20 +316,41 @@ input {
   min-width: 0;
   padding-inline: 0;
 }
-.admin-table {
+.admin-tabs .p-tabpanel {
+  min-width: 0;
   max-width: 100%;
+  overflow: hidden;
+}
+.admin-table {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.admin-table .p-datatable-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 .admin-multiselect {
   width: 100%;
-  min-width: 12rem;
+  min-width: 0;
   max-width: 22rem;
+}
+.admin-multiselect .p-multiselect-label-container {
+  min-width: 0;
 }
 .admin-multiselect .p-multiselect-label {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .admin-table .tag-wrap {
   max-width: 22rem;
+}
+.admin-users-table .p-datatable-frozen-column {
+  box-shadow: -8px 0 14px -14px rgb(15 23 42 / 55%);
 }
 .profile-card {
   display: flex;
@@ -730,8 +751,8 @@ input {
 .dashboard-kpi-icon.teal { color: #0f766e; background: #ccfbf1; }
 .dashboard-kpi-icon.violet { color: #6d28d9; background: #ede9fe; }
 .dashboard-kpi-icon.slate { color: #475569; background: #e2e8f0; }
-.dashboard-kpi strong,
-.dashboard-kpi span {
+.dashboard-kpi > div strong,
+.dashboard-kpi > div span {
   display: block;
 }
 .dashboard-kpi strong {

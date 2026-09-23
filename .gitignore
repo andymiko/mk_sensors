@@ -39,3 +39,6 @@ graphify-out/
 node_modules/
 
 old_files/
+docs/
+tests/
+storage/

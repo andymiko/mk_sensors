@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { defineStore } from "pinia";
+import { acceptHMRUpdate, defineStore } from "pinia";
 import { apiRequest } from "../services/api";
 
 export const useAdminStore = defineStore("admin", () => {
@@ -38,6 +38,20 @@ export const useAdminStore = defineStore("admin", () => {
     users.value = users.value.map((item) =>
       item.id === updated.id ? updated : item,
     );
+  }
+  async function updateUser(user, payload) {
+    const updated = await apiRequest(`/admin/users/${user.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    users.value = users.value.map((item) =>
+      item.id === updated.id ? updated : item,
+    );
+    return updated;
+  }
+  async function deleteUser(user) {
+    await apiRequest(`/admin/users/${user.id}`, { method: "DELETE" });
+    users.value = users.value.filter((item) => item.id !== user.id);
   }
   async function setUserRoles(user, roleIds) {
     const updated = await apiRequest(`/admin/users/${user.id}/roles`, {
@@ -85,6 +99,8 @@ export const useAdminStore = defineStore("admin", () => {
     divisions,
     loading,
     loadAll,
+    updateUser,
+    deleteUser,
     setUserStatus,
     setUserRoles,
     setUserDivisions,
@@ -93,3 +109,7 @@ export const useAdminStore = defineStore("admin", () => {
     createPermission,
   };
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useAdminStore, import.meta.hot));
+}

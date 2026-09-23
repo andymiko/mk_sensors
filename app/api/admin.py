@@ -12,13 +12,19 @@ from app.api.dependencies import require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models.associations import role_permissions, user_roles
 from app.dbapi.models.auths import Auth
-from app.dbapi.models.access import Division, user_divisions
+from app.dbapi.models.access import (
+    Division,
+    user_divisions,
+    user_role_districts,
+    user_role_divisions,
+    user_role_objects,
+)
 from app.dbapi.models.permissions import Permission
 from app.dbapi.models.roles import Role
 from app.dbapi.models.users import User
 from app.schemas.admin import (
     PermissionCreate, PermissionUpdate, RoleCreate, RolePermissionsUpdate,
-    RoleUpdate, UserDivisionsUpdate, UserRolesUpdate, UserStatusUpdate,
+    RoleUpdate, UserDivisionsUpdate, UserRolesUpdate, UserStatusUpdate, UserUpdate,
 )
 from app.schemas.users import PermissionModel, RoleModel, UserRead
 
@@ -36,6 +42,7 @@ async def list_users(
     users = (
         await db.scalars(
             select(User)
+            .join(Auth, Auth.id == User.id)
             .options(selectinload(User.roles).selectinload(Role.permissions))
             .order_by(User.created_at.desc())
         )
@@ -52,6 +59,57 @@ async def list_users(
         UserRead.model_validate(user).model_copy(update={"division_ids": division_ids[user.id]})
         for user in users
     ]
+
+
+@router.patch("/users/{user_id}", response_model=UserRead)
+async def update_user(
+    user_id: str,
+    payload: UserUpdate,
+    db: Db,
+    _current_user: Annotated[User, Depends(require_permission("user.edit"))],
+):
+    user = await db.scalar(select(User).where(User.id == user_id).with_for_update())
+    credential = await db.get(Auth, user_id)
+    if user is None or credential is None:
+        raise HTTPException(404, "Пользователь не найден")
+
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(422, "ФИО не может быть пустым")
+    email = str(payload.email).lower()
+    user.name = name
+    user.email = email
+    credential.email = email
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "Пользователь с такой почтой уже существует") from None
+    return await _load_user(db, user_id)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    db: Db,
+    current_user: Annotated[User, Depends(require_permission("user.edit"))],
+):
+    if user_id == current_user.id:
+        raise HTTPException(400, "Нельзя удалить собственный аккаунт")
+    user = await db.scalar(select(User).where(User.id == user_id).with_for_update())
+    credential = await db.get(Auth, user_id)
+    if user is None or credential is None:
+        raise HTTPException(404, "Пользователь не найден")
+
+    # Профиль остаётся как историческая ссылка для заданий и прогнозов.
+    user.is_active = False
+    user.email = f"deleted+{user.id}@deleted.invalid"
+    await db.delete(credential)
+    await db.execute(delete(user_roles).where(user_roles.c.user_id == user_id))
+    await db.execute(delete(user_divisions).where(user_divisions.c.user_id == user_id))
+    for scope_table in (user_role_districts, user_role_divisions, user_role_objects):
+        await db.execute(delete(scope_table).where(scope_table.c.user_id == user_id))
+    await db.commit()
 
 
 @router.patch("/users/{user_id}/status", response_model=UserRead)

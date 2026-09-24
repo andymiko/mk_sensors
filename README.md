@@ -79,7 +79,7 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=mk_sensors
+DB_NAME=hackaton
 CORS_ALLOWED_ORIGINS=["http://localhost:5173"]
 ```
 

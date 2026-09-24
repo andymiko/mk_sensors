@@ -9,7 +9,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import require_permission
+from app.api.dependencies import CurrentApiClient, require_permission
 from app.dbapi.base import get_async_session
 from app.dbapi.models import Channel, Event, Forecast, Object, User
 from app.ml_models.inference import (
@@ -21,6 +21,7 @@ from app.schemas.forecasts import ForecastChannelOption, ForecastCreate, Forecas
 
 
 router = APIRouter(prefix="/forecasts", tags=["forecasts"])
+ingest_router = APIRouter(prefix="/ingest", tags=["ingestion"])
 Db = Annotated[AsyncSession, Depends(get_async_session)]
 ForecastViewer = Annotated[User, Depends(require_permission("forecast.view"))]
 ForecastCreator = Annotated[User, Depends(require_permission("forecast.create"))]
@@ -112,6 +113,24 @@ async def create_forecast(payload: ForecastCreate, db: Db, user: ForecastCreator
     if channel is None or channel.object_id is None:
         raise HTTPException(404, "Доступный канал с привязанным объектом не найден")
 
+    return await _save_forecast(payload, channel, user.id, db)
+
+
+@ingest_router.post("/forecasts", response_model=ForecastRead, status_code=status.HTTP_201_CREATED)
+async def ingest_forecast(payload: ForecastCreate, db: Db, client: CurrentApiClient):
+    channel = await db.get(Channel, payload.channel_id)
+    if channel is None or channel.object_id is None:
+        raise HTTPException(404, "Канал с привязанным объектом не найден")
+    return await _save_forecast(payload, channel, client.user_id, db)
+
+
+async def _save_forecast(
+    payload: ForecastCreate,
+    channel: Channel,
+    actor_id: str,
+    db: AsyncSession,
+):
+
     event_at = _moscow_naive(payload.event_at)
     forecast_at = datetime.combine(event_at.date() + timedelta(days=1), time.min)
     event = Event(
@@ -172,7 +191,7 @@ async def create_forecast(payload: ForecastCreate, db: Db, user: ForecastCreator
         event_id=event.id,
         channel_id=channel.id,
         object_id=channel.object_id,
-        created_by=user.id,
+        created_by=actor_id,
         model_key=model_key,
         **prediction,
     )

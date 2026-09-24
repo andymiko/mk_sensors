@@ -55,7 +55,6 @@ PERMISSIONS = {
     "file.download": "Просмотр и скачивание файлов",
 }
 ROLES = {
-    "user": ("Пользователь", ["file.upload", "file.download"]),
     "dispatcher": ("Диспетчер", [
         "object.view", "channel.view", "event.view", "dashboard.analytics", "map.view",
         "forecast.view", "forecast.verify", "forecast.decide", "risk.view",

@@ -7,11 +7,10 @@ from sqlalchemy.orm import mapped_column, Mapped, selectinload
 
 from app.dbapi.base import Base, get_async_db_context
 
-from app.dbapi.models.associations import user_roles
 from app.dbapi.models.roles import Role
 from app.dbapi.models.users import User
 
-from app.schemas.users import PermissionModel, RoleModel, UserRead
+from app.schemas.users import UserRead
 from app.utils.security import get_password_hash, verify_password_async
 
 
@@ -70,16 +69,6 @@ class AuthsTable:
                 session.add(credential)
                 await session.flush()
 
-                role = await session.scalar(
-                    select(Role)
-                    .where(Role.code == "user")
-                    .options(selectinload(Role.permissions))
-                )
-                if role is None:
-                    raise RuntimeError("Базовая роль 'user' не создана")
-                await session.execute(
-                    user_roles.insert().values(user_id=new_id, role_id=role.id)
-                )
                 await session.commit()
             except IntegrityError:
                 await session.rollback()
@@ -93,10 +82,10 @@ class AuthsTable:
                 email=email,
                 name=name,
                 is_active=is_active,
-                roles=[RoleModel.model_validate(role)],
-                role_codes=["user"],
-                permission_codes=[permission.code for permission in role.permissions],
-                permissions=[PermissionModel.model_validate(permission) for permission in role.permissions],
+                roles=[],
+                role_codes=[],
+                permission_codes=[],
+                permissions=[],
             )
 
 

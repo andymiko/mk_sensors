@@ -15,7 +15,7 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(200), default="Пользователь", nullable=False)
+    name: Mapped[str] = mapped_column(String(200), default="Новый сотрудник", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
 
     roles: Mapped[List["Role"]] = relationship(

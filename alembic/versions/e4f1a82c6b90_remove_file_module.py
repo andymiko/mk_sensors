@@ -59,7 +59,7 @@ def downgrade():
     connection.execute(sa.text(
         "INSERT INTO role_permissions (role_id, permission_id) "
         "SELECT roles.id, permissions.id FROM roles CROSS JOIN permissions "
-        "WHERE roles.code IN ('user', 'admin') "
+        "WHERE roles.code = 'admin' "
         "AND permissions.code IN ('file.upload', 'file.download') "
         "ON CONFLICT DO NOTHING"
     ))

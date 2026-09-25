@@ -33,7 +33,7 @@ const mapStyle = {
       type: "raster",
       tiles: [mapTileUrl],
       tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
+      attribution: "© Москоллектор",
     },
   },
   layers: [

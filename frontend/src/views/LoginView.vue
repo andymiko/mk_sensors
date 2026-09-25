@@ -71,7 +71,7 @@ const submit = async () => {
             :feedback="false"
             toggle-mask
             autocomplete="current-password"
-            placeholder="Не менее 8 символов"
+            placeholder="Введите пароль"
             required
             fluid
           />

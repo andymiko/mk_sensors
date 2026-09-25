@@ -1,3 +1,5 @@
+import { apiErrorMessage } from "./apiErrors";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export class ApiError extends Error {
@@ -33,7 +35,7 @@ export async function apiRequest(path, options = {}) {
         : await response.text();
   if (!response.ok)
     throw new ApiError(
-      payload?.detail || payload || "Не удалось выполнить запрос",
+      apiErrorMessage(payload),
       response.status,
       payload,
     );

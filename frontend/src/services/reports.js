@@ -1,3 +1,5 @@
+import { apiErrorMessage } from "./apiErrors";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export async function downloadReport(dataset, format, params = {}) {
@@ -10,7 +12,7 @@ export async function downloadReport(dataset, format, params = {}) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.detail || "Не удалось построить отчёт");
+    throw new Error(apiErrorMessage(payload, "Не удалось построить отчёт"));
   }
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") || "";
